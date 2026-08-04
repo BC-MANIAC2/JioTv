@@ -1,0 +1,12 @@
+name = "jiotv"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# KV namespace — run `wrangler kv:namespace create JIOTV_KV` and paste the ID below
+[[kv_namespaces]]
+binding = "KV"
+id = "8b090f8d860946dbb0a4ddf90ce9a05e"
+preview_id = "8b090f8d860946dbb0a4ddf90ce9a05e"
+
+[vars]
+APP_NAME = "JioTV+"

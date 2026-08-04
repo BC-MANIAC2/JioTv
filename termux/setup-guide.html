@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JioTV – Watch at Friend's House</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
+    :root {
+      --bg:#0b0c10;--surface:#13151c;--card:#1a1d27;--border:#252836;
+      --accent:#ff6b00;--accent2:#ff9e00;--green:#00e676;--blue:#4fc3f7;--purple:#ce93d8;
+      --text:#e8eaf0;--muted:#7b7f95;--radius:14px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);padding-bottom:60px;}
+
+    .hero{
+      background:linear-gradient(135deg,#0f1117 0%,#1a0a00 50%,#0f1117 100%);
+      padding:50px 20px 40px;text-align:center;border-bottom:1px solid var(--border);
+      position:relative;overflow:hidden;
+    }
+    .hero::before{content:'';position:absolute;inset:0;
+      background:radial-gradient(ellipse at 50% 0%,rgba(255,107,0,0.18) 0%,transparent 70%);pointer-events:none;}
+    .flag{font-size:3rem;display:block;margin-bottom:12px;animation:float 3s ease-in-out infinite;}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+    .hero h1{font-size:clamp(1.8rem,5vw,2.8rem);font-weight:900;
+      background:linear-gradient(135deg,#ff6b00,#ff9e00,#ffcc02);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px;}
+    .hero p{color:var(--muted);font-size:1rem;max-width:520px;margin:0 auto;line-height:1.6;}
+    .badge-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px;}
+    .badge{background:rgba(255,107,0,0.12);border:1px solid rgba(255,107,0,0.3);
+      color:var(--accent2);padding:6px 16px;border-radius:50px;font-size:0.8rem;font-weight:600;}
+    .badge.g{background:rgba(0,230,118,0.1);border-color:rgba(0,230,118,0.3);color:var(--green);}
+    .badge.b{background:rgba(79,195,247,0.1);border-color:rgba(79,195,247,0.3);color:var(--blue);}
+    .badge.p{background:rgba(206,147,216,0.1);border-color:rgba(206,147,216,0.3);color:var(--purple);}
+
+    .container{max-width:720px;margin:0 auto;padding:28px 16px 0;}
+
+    /* Flow diagram */
+    .flow{
+      display:flex;align-items:center;justify-content:center;gap:6px;
+      flex-wrap:wrap;padding:22px 16px;
+      background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+      margin-bottom:22px;
+    }
+    .flow-item{text-align:center;font-size:0.8rem;color:var(--muted);}
+    .flow-item .icon{font-size:2rem;display:block;margin-bottom:4px;}
+    .flow-item .label{font-weight:600;color:var(--text);font-size:0.78rem;}
+    .flow-arrow{font-size:1.4rem;color:var(--accent);margin:0 4px;}
+
+    /* Steps */
+    .step{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+      margin-bottom:14px;overflow:hidden;transition:border-color .3s;}
+    .step:hover{border-color:rgba(255,107,0,0.4);}
+    .step-header{display:flex;align-items:center;gap:14px;padding:16px 18px;cursor:pointer;user-select:none;}
+    .step-num{min-width:36px;height:36px;border-radius:50%;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:flex;align-items:center;justify-content:center;
+      font-weight:800;font-size:0.9rem;color:#fff;
+      box-shadow:0 4px 14px rgba(255,107,0,0.35);flex-shrink:0;}
+    .step-title{flex:1;}
+    .step-title h3{font-size:0.97rem;font-weight:700;margin-bottom:2px;}
+    .step-title p{font-size:0.78rem;color:var(--muted);}
+    .chevron{color:var(--muted);font-size:0.75rem;transition:transform .3s;}
+    .step.open .chevron{transform:rotate(180deg);}
+    .step-body{display:none;padding:0 18px 18px;border-top:1px solid var(--border);}
+    .step.open .step-body{display:block;}
+
+    /* App cards */
+    .app-card{display:flex;align-items:center;gap:14px;background:var(--surface);
+      border:1px solid var(--border);border-radius:10px;padding:12px 14px;
+      margin-bottom:10px;text-decoration:none;color:var(--text);
+      transition:border-color .25s,transform .2s;}
+    .app-card:hover{border-color:var(--accent);transform:translateX(4px);}
+    .app-icon{font-size:2rem;min-width:44px;text-align:center;}
+    .app-info h4{font-size:0.9rem;font-weight:700;margin-bottom:1px;}
+    .app-info p{font-size:0.76rem;color:var(--muted);}
+    .tag{display:inline-block;background:rgba(0,230,118,0.15);color:var(--green);
+      font-size:0.66rem;font-weight:700;padding:2px 8px;border-radius:50px;margin-top:4px;}
+
+    /* Code */
+    .code-block{background:#0d0f16;border:1px solid #252836;border-radius:10px;
+      padding:14px;margin:12px 0;position:relative;overflow-x:auto;}
+    .code-block pre{font-family:'JetBrains Mono',monospace;font-size:0.82rem;
+      line-height:1.7;color:#a8d8a8;white-space:pre-wrap;word-break:break-all;padding-right:58px;}
+    .copy-btn{position:absolute;top:10px;right:10px;background:rgba(255,107,0,0.15);
+      border:1px solid rgba(255,107,0,0.3);color:var(--accent2);padding:4px 10px;
+      border-radius:6px;cursor:pointer;font-size:0.7rem;font-weight:600;transition:all .2s;}
+    .copy-btn:hover{background:rgba(255,107,0,0.3);}
+    .copy-btn.copied{background:rgba(0,230,118,0.2);border-color:var(--green);color:var(--green);}
+
+    /* Callouts */
+    .tip{background:rgba(79,195,247,0.07);border-left:3px solid var(--blue);
+      border-radius:0 8px 8px 0;padding:12px 14px;margin:12px 0;font-size:0.82rem;color:#cde8ff;line-height:1.8;}
+    .tip strong{color:var(--blue);}
+    .warn{background:rgba(255,107,0,0.07);border-left:3px solid var(--accent);
+      border-radius:0 8px 8px 0;padding:12px 14px;margin:12px 0;font-size:0.82rem;color:#ffe0b2;line-height:1.6;}
+    .warn strong{color:var(--accent2);}
+    .success{background:rgba(0,230,118,0.07);border-left:3px solid var(--green);
+      border-radius:0 8px 8px 0;padding:12px 14px;margin:12px 0;font-size:0.82rem;color:#c8f5da;line-height:1.8;}
+    .success strong{color:var(--green);}
+
+    /* Numbered sub-steps */
+    .sub-steps{margin:14px 0;}
+    .sub-step{display:flex;gap:14px;align-items:flex-start;padding:12px 14px;
+      background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
+    .sub-num{min-width:28px;height:28px;border-radius:50%;
+      background:rgba(206,147,216,0.2);border:1px solid rgba(206,147,216,0.4);
+      color:var(--purple);font-size:0.8rem;font-weight:800;
+      display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .sub-text h4{font-size:0.88rem;font-weight:700;margin-bottom:2px;}
+    .sub-text p{font-size:0.78rem;color:var(--muted);line-height:1.5;}
+    .sub-text code{font-family:'JetBrains Mono',monospace;color:var(--accent2);font-size:0.8rem;}
+
+    .checklist{list-style:none;margin:12px 0;}
+    .checklist li{display:flex;gap:10px;align-items:flex-start;
+      padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);
+      font-size:0.86rem;color:#c8cad8;line-height:1.5;}
+    .checklist li:last-child{border-bottom:none;}
+    .dot{color:var(--green);flex-shrink:0;}
+
+    .section-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:2px;
+      color:var(--muted);margin:22px 0 10px;font-weight:700;}
+
+    /* Telegram highlight box */
+    .tg-box{
+      background:linear-gradient(135deg,rgba(206,147,216,0.06),rgba(206,147,216,0.12));
+      border:1px solid rgba(206,147,216,0.35);border-radius:var(--radius);
+      padding:20px 18px;margin-bottom:20px;
+    }
+    .tg-box h2{font-size:1.05rem;font-weight:800;color:var(--purple);margin-bottom:6px;}
+    .tg-box p{font-size:0.84rem;color:#ecd8f5;line-height:1.6;}
+
+    /* CTA */
+    .cta-box{background:linear-gradient(135deg,rgba(255,107,0,0.08),rgba(255,158,0,0.05));
+      border:1px solid rgba(255,107,0,0.25);border-radius:var(--radius);
+      padding:28px 24px;text-align:center;margin-top:20px;}
+    .cta-box h2{font-size:1.4rem;font-weight:800;
+      background:linear-gradient(135deg,#ff6b00,#ff9e00);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px;}
+    .cta-box p{color:var(--muted);font-size:0.86rem;}
+    .pulse{animation:pulse 2s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <span class="flag">🇮🇳</span>
+  <h1>JioTV at Friend's House</h1>
+  <p>Your phone hosts it in India. Friend watches it on their Xiaomi TV. URL auto-sent via Telegram — completely free.</p>
+  <div class="badge-row">
+    <span class="badge">Free Forever</span>
+    <span class="badge g">Indian IP</span>
+    <span class="badge b">Any Location</span>
+    <span class="badge p">Telegram Auto-Notify</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Flow diagram -->
+  <div class="flow">
+    <div class="flow-item"><span class="icon">📱</span><span class="label">Your Phone<br><small style="color:var(--muted)">India (any WiFi)</small></span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-item"><span class="icon">☁️</span><span class="label">Cloudflare<br><small style="color:var(--muted)">Free tunnel</small></span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-item"><span class="icon">✈️</span><span class="label">Telegram<br><small style="color:var(--muted)">Auto sends URL</small></span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-item"><span class="icon">📺</span><span class="label">Friend's TV<br><small style="color:var(--muted)">Any location</small></span></div>
+  </div>
+
+  <!-- Telegram highlight -->
+  <div class="tg-box">
+    <h2>How the Friend Gets the URL</h2>
+    <p>
+      Every time you start the server, the <strong style="color:#fff">public URL is automatically sent</strong> to your friend via a Telegram bot.
+      Your friend opens Telegram, taps the link, types it in their Xiaomi TV MI Browser — done.
+      No manual copy-paste. No calling each other. It just works.
+    </p>
+  </div>
+
+  <p class="section-label">Your Setup (Phone)</p>
+
+  <!-- S1 -->
+  <div class="step open" id="s1">
+    <div class="step-header" onclick="toggle('s1')">
+      <div class="step-num">1</div>
+      <div class="step-title"><h3>Install Termux + Addons on Your Phone</h3><p>F-Droid only — NOT Play Store</p></div>
+      <span class="chevron">v</span>
+    </div>
+    <div class="step-body">
+      <div class="warn"><strong>Important:</strong> Use F-Droid builds. Play Store version is outdated.</div>
+      <a class="app-card" href="https://f-droid.org/packages/com.termux/" target="_blank">
+        <div class="app-icon">⬛</div>
+        <div class="app-info"><h4>Termux</h4><p>Linux terminal for Android</p><span class="tag">F-DROID</span></div>
+      </a>
+      <a class="app-card" href="https://f-droid.org/packages/com.termux.boot/" target="_blank">
+        <div class="app-icon">🔄</div>
+        <div class="app-info"><h4>Termux:Boot</h4><p>Auto-start on reboot</p><span class="tag">F-DROID</span></div>
+      </a>
+      <a class="app-card" href="https://f-droid.org/packages/com.termux.api/" target="_blank">
+        <div class="app-icon">🔔</div>
+        <div class="app-info"><h4>Termux:API</h4><p>Phone notifications</p><span class="tag">F-DROID</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- S2 -->
+  <div class="step" id="s2">
+    <div class="step-header" onclick="toggle('s2')">
+      <div class="step-num">2</div>
+      <div class="step-title"><h3>Create a Telegram Bot (1 minute)</h3><p>So the URL gets auto-sent to your friend</p></div>
+      <span class="chevron">v</span>
+    </div>
+    <div class="step-body">
+      <div class="sub-steps" style="margin-top:14px">
+        <div class="sub-step">
+          <div class="sub-num">A</div>
+          <div class="sub-text"><h4>Open Telegram on your phone</h4><p>Search for <code>@BotFather</code> and tap START</p></div>
+        </div>
+        <div class="sub-step">
+          <div class="sub-num">B</div>
+          <div class="sub-text"><h4>Send: /newbot</h4><p>Give it any name like <code>MyJioTVBot</code></p></div>
+        </div>
+        <div class="sub-step">
+          <div class="sub-num">C</div>
+          <div class="sub-text"><h4>Copy the Bot Token</h4><p>Looks like: <code>7123456789:AAFxxxxxxxxxxxxxxxxxxxx</code></p></div>
+        </div>
+        <div class="sub-step">
+          <div class="sub-num">D</div>
+          <div class="sub-text"><h4>Your friend opens @userinfobot</h4><p>Send /start — it replies with their Chat ID (a number). Share that with you.</p></div>
+        </div>
+      </div>
+      <div class="tip"><strong>Note:</strong> Your friend must also START your new bot (search by bot username in Telegram and tap Start) before they can receive messages.</div>
+    </div>
+  </div>
+
+  <!-- S3 -->
+  <div class="step" id="s3">
+    <div class="step-header" onclick="toggle('s3')">
+      <div class="step-num">3</div>
+      <div class="step-title"><h3>Copy JioTv Files to Your Phone</h3><p>Place in /sdcard/JioTv/</p></div>
+      <span class="chevron">v</span>
+    </div>
+    <div class="step-body">
+      <p style="color:var(--muted);font-size:.85rem;margin-top:14px">Transfer the JioTv project folder to your phone via USB or Google Drive and place it at:</p>
+      <div class="code-block">
+        <pre>/sdcard/JioTv/</pre>
+        <button class="copy-btn" onclick="cp(this,'/sdcard/JioTv/')">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- S4 -->
+  <div class="step" id="s4">
+    <div class="step-header" onclick="toggle('s4')">
+      <div class="step-num">4</div>
+      <div class="step-title"><h3>Run One-Command Setup in Termux</h3><p>Installs everything + asks for your Telegram bot token</p></div>
+      <span class="chevron">v</span>
+    </div>
+    <div class="step-body">
+      <p style="color:var(--muted);font-size:.85rem;margin-top:14px">First, allow storage access:</p>
+      <div class="code-block">
+        <pre>termux-setup-storage</pre>
+        <button class="copy-btn" onclick="cp(this,'termux-setup-storage')">Copy</button>
+      </div>
+      <p style="color:var(--muted);font-size:.85rem">Then run the full setup:</p>
+      <div class="code-block">
+        <pre>curl -sL https://raw.githubusercontent.com/Jitendraunatti/JioTv/main/termux/setup.sh | bash</pre>
+        <button class="copy-btn" onclick="cp(this,'curl -sL https://raw.githubusercontent.com/Jitendraunatti/JioTv/main/termux/setup.sh | bash')">Copy</button>
+      </div>
+      <div class="tip">
+        <strong>During setup it will ask for:</strong><br>
+        + Telegram Bot Token (from @BotFather)<br>
+        + Friend's Telegram Chat ID (from @userinfobot)<br>
+        It will verify and send a test message to your friend instantly.
+      </div>
+    </div>
+  </div>
+
+  <!-- S5 -->
+  <div class="step" id="s5">
+    <div class="step-header" onclick="toggle('s5')">
+      <div class="step-num">5</div>
+      <div class="step-title"><h3>Start JioTV Server</h3><p>URL auto-sent to friend on Telegram every time</p></div>
+      <span class="chevron">v</span>
+    </div>
+    <div class="step-body">
+      <div class="code-block" style="margin-top:14px">
+        <pre>~/start-jiotv.sh</pre>
+        <button class="copy-btn" onclick="cp(this,'~/start-jiotv.sh')">Copy</button>
+      </div>
+      <div class="success">
+        <strong>What happens automatically:</strong><br>
+        1. PHP server starts on your phone<br>
+        2. Cloudflare creates a public HTTPS URL<br>
+        3. URL is sent to your friend's Telegram<br>
+        4. A QR code is shown in Termux<br>
+        5. Phone notification with the URL appears
+      </div>
+    </div>
+  </div>
+
+  <!-- S6 -->
+  <div class="step" id="s6">
+    <div class="step-header" onclick="toggle('s6')">
+      <div class="step-num">6</div>
+      <div class="step-title"><h3>Keep Your Phone Running 24/7</h3><p>Charger + wakelock = always online</p></div>
+      <span class="chevron">v</span>
+    </div>
+    <div class="step-body">
+      <ul class="checklist" style="margin-top:14px">
+        <li><span class="dot">+</span> Keep phone plugged into charger</li>
+        <li><span class="dot">+</span> Settings &gt; Battery &gt; Disable battery optimization for Termux</li>
+        <li><span class="dot">+</span> Script runs <code style="color:var(--accent2)">termux-wake-lock</code> automatically</li>
+        <li><span class="dot">+</span> Termux:Boot auto-restarts server if phone reboots</li>
+        <li><span class="dot">+</span> If URL changes, friend gets a new Telegram message automatically</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="section-label">Friend's Setup (TV)</p>
+
+  <!-- S7 -->
+  <div class="step" id="s7">
+    <div class="step-header" onclick="toggle('s7')">
+      <div class="step-num">7</div>
+      <div class="step-title"><h3>Friend Opens JioTV on Xiaomi TV</h3><p>Tap Telegram link, type URL in TV browser</p></div>
+      <span class="chevron">v</span>
+    </div>
+    <div class="step-body">
+      <div class="sub-steps" style="margin-top:14px">
+        <div class="sub-step">
+          <div class="sub-num">A</div>
+          <div class="sub-text"><h4>Friend receives Telegram message</h4><p>Message contains the JioTV URL like:<br><code>https://abc-def-xyz.trycloudflare.com/jitendraunatti.php</code></p></div>
+        </div>
+        <div class="sub-step">
+          <div class="sub-num">B</div>
+          <div class="sub-text"><h4>Open MI Browser on Xiaomi TV</h4><p>Home &gt; Apps &gt; MI Browser</p></div>
+        </div>
+        <div class="sub-step">
+          <div class="sub-num">C</div>
+          <div class="sub-text"><h4>Type the URL from Telegram in the address bar</h4><p>Or use phone screen mirroring to open the Telegram link directly</p></div>
+        </div>
+        <div class="sub-step">
+          <div class="sub-num">D</div>
+          <div class="sub-text"><h4>Login with Jio number + OTP — Watch!</h4><p>Once logged in, session is saved. No login needed next time unless cleared.</p></div>
+        </div>
+      </div>
+      <div class="tip"><strong>Shortcut:</strong> Friend can also open Telegram on their phone, tap the URL — it opens in phone browser. Then use screen mirroring (Cast / Miracast) to mirror it to the Xiaomi TV.</div>
+    </div>
+  </div>
+
+  <!-- Commands cheatsheet -->
+  <div class="step" id="s8">
+    <div class="step-header" onclick="toggle('s8')">
+      <div class="step-num">8</div>
+      <div class="step-title"><h3>Commands Cheat Sheet</h3><p>All commands you need day-to-day</p></div>
+      <span class="chevron">v</span>
+    </div>
+    <div class="step-body">
+      <div class="code-block" style="margin-top:14px">
+        <pre># Start server (auto-sends URL to friend)
+~/start-jiotv.sh
+
+# Stop server
+~/stop-jiotv.sh
+
+# Get/resend current URL to friend
+~/jiotv-url.sh
+
+# Update Telegram bot settings
+~/jiotv-setup-telegram.sh</pre>
+        <button class="copy-btn" onclick="cp(this,'~/start-jiotv.sh')">Copy Start</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cta-box">
+    <h2>Your Friend Can Watch JioTV Anywhere!</h2>
+    <p>Indian IP on your phone, public URL via Cloudflare, auto-delivered via Telegram</p>
+    <div style="font-size:2.5rem;margin:14px 0" class="pulse">📺</div>
+    <p style="font-size:.78rem">
+      Help: <a href="https://t.me/jitendraunatti_github" style="color:var(--blue)">@jitendraunatti_github</a>
+    </p>
+  </div>
+
+</div>
+<script>
+  function toggle(id){document.getElementById(id).classList.toggle('open');}
+  function cp(btn,text){
+    navigator.clipboard.writeText(text).then(()=>{
+      btn.textContent='Copied!';btn.classList.add('copied');
+      setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2000);
+    });
+  }
+</script>
+</body>
+</html>

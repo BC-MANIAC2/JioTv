@@ -1,0 +1,13 @@
+{
+  "name": "jiotv-cf-workers",
+  "version": "1.0.0",
+  "description": "JioTV on Cloudflare Workers - Indian IP, Free, 24/7",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

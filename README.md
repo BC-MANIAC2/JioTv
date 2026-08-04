@@ -1,3 +1,5 @@
+> [!WARNING]
+> **Cloudflare Workers Disclaimer:** Due to strict IP-blocking by JioTV's Akamai firewall, deploying this proxy on Cloudflare Workers (or any datacenter IPs) may result in streams being blocked with `403 Forbidden` or `451 Unavailable For Legal Reasons`. For reliable playback, run this proxy locally on your own residential network using the provided Termux setup.
 
 <p align='center'><img src="https://i.ibb.co/BcjC6R8/jiotv.png" width="120" ></p>
 
