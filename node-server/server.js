@@ -164,10 +164,32 @@ app.get('/api/stream', async (req, res) => {
       const result = await jioFetch(getUrl, headers, 'POST', body);
       let json = {};
       try { json = JSON.parse(result.data); } catch {}
+      console.log(`[API STREAM] json response for ${id}:`, JSON.stringify(json).substring(0, 300));
       
       if (json.code === 200 && json.result) {
-        const streamUrl = json.result;
+        let streamUrl = json.result;
         const isDash = streamUrl.includes('.mpd');
+
+        // JioTV sometimes returns a stale index.m3u8 that returns 404 on the CDN.
+        // We must fallback to high/medium/low directly if index.m3u8 is dead.
+        if (streamUrl.includes('.m3u8') && json.bitrates) {
+          const candidates = [streamUrl, json.bitrates.high, json.bitrates.medium, json.bitrates.low].filter(Boolean);
+          console.log(`[API STREAM] Checking candidates for ${id}:`, candidates.length);
+          for (const cand of candidates) {
+            try {
+              // The API already includes the __hdnea__ token in these URLs, so we can just HEAD them
+              const check = await fetch(cand, { method: 'HEAD' });
+              console.log(`[API STREAM] Candidate ${cand.split('?')[0]} returned ${check.status}`);
+              if (check.status !== 404) {
+                streamUrl = cand;
+                break;
+              }
+            } catch (e) {
+              console.log(`[API STREAM] Candidate check failed for ${cand.split('?')[0]}:`, e.message);
+            }
+          }
+        }
+
         // Proxy the stream URL through our generic proxy to bypass CORS
         return res.json({
           type: isDash ? 'dash' : 'hls',
@@ -208,39 +230,57 @@ app.use('/proxy', async (req, res) => {
     'Accept': '*/*'
   };
 
-  // JioTV's key server rejects requests if CDN tokens are present in the query string
-  // It expects the hdnea token as a Cookie instead.
-  if (targetUrl.includes('tv.media.jio.com') && targetUrl.includes('?')) {
-    const urlObj = new URL(targetUrl);
-    const hdnea = urlObj.searchParams.get('__hdnea__') || urlObj.searchParams.get('hdnea');
-    if (hdnea) {
-      fetchHeaders['Cookie'] = `__hdnea__=${hdnea}`;
-    }
-    targetUrl = targetUrl.split('?')[0];
-  }
+  // Stop stripping query string and cookie - let it forward exactly like jiotv_go
+  // if (targetUrl.includes('tv.media.jio.com') && targetUrl.includes('?')) {
+  //   targetUrl = targetUrl.split('?')[0];
+  // }
 
   const sessionData = getSessionData(req);
   const channelId = req.headers['x-jiotv-channelid'] || '100';
 
   if (sessionData && targetUrl.includes('jio.com')) {
     const user = sessionData.sessionAttributes?.user ?? {};
+    // Match jiotv_go EXACT headers for key fetches
+    fetchHeaders['Content-type'] = 'application/x-www-form-urlencoded';
     fetchHeaders['appkey'] = 'NzNiMDhlYzQyNjJm';
-    fetchHeaders['channelid'] = channelId;
+    fetchHeaders['channelId'] = channelId;
+    fetchHeaders['channel_id'] = channelId;
     fetchHeaders['crmid'] = user.subscriberId || '';
+    fetchHeaders['userId'] = user.subscriberId || '';
     fetchHeaders['deviceId'] = sessionData.deviceId || '300653d8650a2';
     fetchHeaders['devicetype'] = 'phone';
+    fetchHeaders['isott'] = 'false';
+    fetchHeaders['languageId'] = '6';
+    fetchHeaders['lbcookie'] = '1';
     fetchHeaders['os'] = 'android';
-    fetchHeaders['osVersion'] = '11';
-    fetchHeaders['srno'] = '230111140722';
+    fetchHeaders['osVersion'] = '13';
+    fetchHeaders['srno'] = '230203144000';
     fetchHeaders['ssotoken'] = sessionData.ssoToken || '';
-    fetchHeaders['subscriberid'] = user.subscriberId || '';
-    fetchHeaders['uniqueid'] = user.unique || '';
+    fetchHeaders['subscriberId'] = user.subscriberId || '';
+    fetchHeaders['uniqueId'] = user.unique || '';
+    fetchHeaders['usergroup'] = 'tvYR7NSNn7rymo3F';
+    fetchHeaders['versionCode'] = '331'; // jiotv_go uses 389 but 331 is fine
+  }
+
+  // Debug log the exact fetch we are making for keys
+  if (targetUrl.includes('.key') || targetUrl.includes('.pkey')) {
+    console.log(`[KEY PROXY] Fetching key for channel ${channelId}`);
   }
 
   try {
     const response = await fetch(targetUrl, {
-      headers: fetchHeaders
+      headers: fetchHeaders,
+      redirect: 'follow'
     });
+    if (targetUrl.includes('.key') || targetUrl.includes('.pkey')) {
+      console.log(`[KEY PROXY] Response status: ${response.status}`);
+      if (!response.ok) {
+        const text = await response.text();
+        console.log(`[KEY PROXY] Error text: ${text.substring(0, 200)}`);
+        return res.status(response.status).send(text);
+      }
+    }
+    
     res.status(response.status);
     response.headers.forEach((val, key) => res.setHeader(key, val));
     res.setHeader('Access-Control-Allow-Origin', '*');
