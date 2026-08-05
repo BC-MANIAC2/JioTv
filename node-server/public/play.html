@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Player | JioTV Proxy</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="index.css">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+  <style>
+    body {
+      background: #000;
+      overflow: hidden;
+    }
+    
+    .player-header {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      padding: 20px 5%;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      transition: opacity 0.3s ease;
+    }
+
+    .back-btn {
+      color: white;
+      text-decoration: none;
+      background: rgba(255,255,255,0.1);
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      backdrop-filter: blur(5px);
+      transition: all 0.2s;
+    }
+
+    .back-btn:hover {
+      background: var(--accent);
+    }
+
+    .channel-title {
+      font-size: 20px;
+      font-weight: 600;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    .video-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    #loading-overlay, #error-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+
+    #error-overlay {
+      display: none;
+      background: rgba(10, 0, 0, 0.9);
+    }
+
+    #error-overlay.show {
+      display: flex;
+    }
+
+    .error-title {
+      color: #ff4b4b;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: white;
+      padding: 10px 25px;
+      border: none;
+      border-radius: 20px;
+      font-size: 16px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 20px;
+    }
+
+    /* Hide header when mouse is still */
+    .idle .player-header {
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="player-header" id="playerHeader">
+    <a href="/" class="back-btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back
+    </a>
+    <div class="channel-title" id="channelTitle">Loading...</div>
+  </div>
+
+  <div class="video-container" id="videoContainer">
+    <video id="video" controls autoplay playsinline></video>
+    
+    <div id="loading-overlay">
+      <div class="spinner"></div>
+      <p style="margin-top:20px; font-weight:600; color: #ccc;">Connecting to stream...</p>
+    </div>
+
+    <div id="error-overlay">
+      <div class="error-title">⚠️ Stream Error</div>
+      <div class="error-msg" id="error-msg">Failed to connect to the stream.</div>
+      <button class="btn" onclick="location.reload()">Retry</button>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const channelId = urlParams.get('id');
+    const channelName = urlParams.get('name') || 'Live Stream';
+
+    document.getElementById('channelTitle').textContent = channelName;
+    document.title = channelName + ' | JioTV Proxy';
+
+    if (!channelId) {
+      document.getElementById('error-msg').textContent = 'No channel ID provided.';
+      document.getElementById('error-overlay').classList.add('show');
+      document.getElementById('loading-overlay').style.display = 'none';
+    } else {
+      initPlayer(channelId);
+    }
+
+    function initPlayer(id) {
+      const video = document.getElementById('video');
+      // Our proxy URL that automatically uses the teachub token
+      const streamUrl = `/live.m3u8?id=${id}&token=JITENDRA_KUMAR&_t=${Date.now()}`;
+
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          maxBufferLength: 30,
+          maxMaxBufferLength: 600,
+          enableWorker: true
+        });
+
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          document.getElementById('loading-overlay').style.display = 'none';
+          video.play().catch(e => console.log("Auto-play prevented", e));
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            document.getElementById('loading-overlay').style.display = 'none';
+            document.getElementById('error-msg').textContent = data.details || 'Fatal stream error';
+            document.getElementById('error-overlay').classList.add('show');
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS
+        video.src = streamUrl;
+        video.addEventListener('loadedmetadata', () => {
+          document.getElementById('loading-overlay').style.display = 'none';
+          video.play().catch(e => console.log("Auto-play prevented", e));
+        });
+        video.addEventListener('error', () => {
+          document.getElementById('loading-overlay').style.display = 'none';
+          document.getElementById('error-msg').textContent = 'Stream error';
+          document.getElementById('error-overlay').classList.add('show');
+        });
+      } else {
+        document.getElementById('loading-overlay').style.display = 'none';
+        document.getElementById('error-msg').textContent = 'HLS is not supported in this browser.';
+        document.getElementById('error-overlay').classList.add('show');
+      }
+    }
+
+    // Auto-hide header
+    let hideTimeout;
+    function resetHideTimer() {
+      document.body.classList.remove('idle');
+      clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => {
+        document.body.classList.add('idle');
+      }, 3000);
+    }
+    
+    document.addEventListener('mousemove', resetHideTimer);
+    document.addEventListener('touchstart', resetHideTimer);
+    resetHideTimer();
+  </script>
+</body>
+</html>

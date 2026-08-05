@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>JioTV Proxy | Premium</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="url(#grad1)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <defs>
+          <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#ff4b4b;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#e50914;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+        <line x1="7" y1="2" x2="7" y2="22"></line>
+        <line x1="17" y1="2" x2="17" y2="22"></line>
+        <line x1="2" y1="12" x2="22" y2="12"></line>
+        <line x1="2" y1="7" x2="7" y2="7"></line>
+        <line x1="2" y1="17" x2="7" y2="17"></line>
+        <line x1="17" y1="17" x2="22" y2="17"></line>
+        <line x1="17" y1="7" x2="22" y2="7"></line>
+      </svg>
+      JioTV Proxy
+    </div>
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search channels..." autocomplete="off">
+    </div>
+  </header>
+
+  <main>
+    <div class="category-filters" id="categoryFilters">
+      <div class="filter-btn active" data-id="all">All Channels</div>
+      <!-- Filters will be populated here -->
+    </div>
+
+    <div id="loader" class="loader">
+      <div class="spinner"></div>
+      <p>Loading 800+ Premium Channels...</p>
+    </div>
+
+    <div class="channels-grid" id="channelsGrid">
+      <!-- Cards will be populated here -->
+    </div>
+  </main>
+
+  <script>
+    const LOGO_BASE_URL = 'https://jiotvimages.cdn.jio.com/dare_images/images/';
+    const CATEGORIES = {
+      1: 'Entertainment',
+      2: 'Movies',
+      3: 'Kids',
+      4: 'Sports',
+      5: 'Lifestyle',
+      6: 'Infotainment',
+      7: 'News',
+      8: 'Music',
+      9: 'Devotional',
+      10: 'Business',
+      11: 'Educational',
+      12: 'Shopping',
+      13: 'JioDarshan',
+      14: 'Darshan'
+    };
+
+    let allChannels = [];
+    let currentCategory = 'all';
+
+    async function loadChannels() {
+      try {
+        const res = await fetch('/api/channels');
+        const data = await res.json();
+        allChannels = data.result || [];
+        
+        // Filter out hidden/cam channels if needed, but for now just show all
+        allChannels = allChannels.filter(c => !c.isHidden);
+        
+        document.getElementById('loader').style.display = 'none';
+        renderCategories();
+        renderChannels();
+      } catch (err) {
+        document.getElementById('loader').innerHTML = `<p style="color:#ff4b4b">Failed to load channels. Please check backend.</p>`;
+      }
+    }
+
+    function renderCategories() {
+      const container = document.getElementById('categoryFilters');
+      
+      // Get unique category IDs from data
+      const catIds = [...new Set(allChannels.map(c => c.channelCategoryId))].sort((a,b)=>a-b);
+      
+      catIds.forEach(id => {
+        if (!CATEGORIES[id]) return;
+        const btn = document.createElement('div');
+        btn.className = 'filter-btn';
+        btn.dataset.id = id;
+        btn.innerText = CATEGORIES[id];
+        btn.onclick = () => setCategory(id, btn);
+        container.appendChild(btn);
+      });
+
+      // Bind 'All' button
+      container.querySelector('[data-id="all"]').onclick = function() {
+        setCategory('all', this);
+      };
+    }
+
+    function setCategory(id, element) {
+      currentCategory = id;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      element.classList.add('active');
+      renderChannels();
+    }
+
+    function renderChannels() {
+      const grid = document.getElementById('channelsGrid');
+      grid.innerHTML = '';
+      
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      
+      let filtered = allChannels.filter(c => {
+        const matchName = c.channel_name.toLowerCase().includes(query);
+        const matchCat = currentCategory === 'all' || c.channelCategoryId == currentCategory;
+        return matchName && matchCat;
+      });
+
+      filtered.forEach(c => {
+        const card = document.createElement('a');
+        card.className = 'channel-card';
+        card.href = `/play.html?id=${c.channel_id}&name=${encodeURIComponent(c.channel_name)}`;
+        
+        const logoUrl = LOGO_BASE_URL + (c.logoUrl || 'default.png');
+        
+        let metaHtml = '';
+        if (c.isHD) {
+          metaHtml += `<span class="badge">HD</span>`;
+        }
+        if (CATEGORIES[c.channelCategoryId]) {
+          metaHtml += `<span>${CATEGORIES[c.channelCategoryId]}</span>`;
+        }
+
+        card.innerHTML = `
+          <div class="channel-logo-container">
+            <img src="${logoUrl}" alt="${c.channel_name}" class="channel-logo" loading="lazy" onerror="this.src='https://jiotvimages.cdn.jio.com/dare_images/images/default.png'">
+          </div>
+          <div class="channel-name">${c.channel_name}</div>
+          <div class="channel-meta">${metaHtml}</div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    document.getElementById('searchInput').addEventListener('input', renderChannels);
+
+    // Init
+    loadChannels();
+  </script>
+</body>
+</html>
