@@ -310,6 +310,9 @@ app.use('/proxy', async (req, res) => {
           'subscriberId': user.subscriberId || '',
           'uniqueId': user.unique || ''
         };
+        const { getConfig, decodeApiUrl } = await import('./src/config.js');
+        const { jioFetch } = await import('./src/jio.js');
+        const config = await getConfig(env);
         const getUrl = decodeApiUrl(config.jiotv_api?.geturl);
         const body = `stream_type=Seek&channel_id=${channelId}`;
         const result = await jioFetch(getUrl, freshHeaders, 'POST', body);
