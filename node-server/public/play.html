@@ -177,6 +177,11 @@
           const player = new shaka.Player(video);
           
           player.getNetworkingEngine().registerRequestFilter((type, request) => {
+            // Force external absolute URLs through our proxy (to handle BaseURLs or absolute key paths)
+            if (request.uris[0].startsWith('http') && !request.uris[0].startsWith(location.origin)) {
+              request.uris[0] = '/proxy/' + request.uris[0];
+            }
+
             if (queryParams) {
               const qs = queryParams.substring(1);
               if (!request.uris[0].includes(qs)) {
@@ -223,10 +228,16 @@
               enableWorker: true,
               xhrSetup: function(xhr, url) {
                 let newUrl = url;
+                
+                // Force external absolute URLs (like .key files) through our proxy
+                if (newUrl.startsWith('http') && !newUrl.startsWith(location.origin)) {
+                  newUrl = '/proxy/' + newUrl;
+                }
+
                 if (queryParams) {
                   const qs = queryParams.substring(1);
-                  if (!url.includes(qs)) {
-                    newUrl += (url.includes('?') ? '&' : '?') + qs;
+                  if (!newUrl.includes(qs)) {
+                    newUrl += (newUrl.includes('?') ? '&' : '?') + qs;
                   }
                 }
                 xhr.open('GET', newUrl, true);
