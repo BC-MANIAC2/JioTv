@@ -5,18 +5,7 @@
 // proxy through our /wanda endpoint.
 // ============================================================
 
-import { jioFetch } from './jio.js';
-import { decodeApiUrl } from './config.js';
-import { getValidToken } from './auth.js';
-import { encrypt } from './crypto.js';
-
-// The validation token JioTV uses — same as PHP's hex-decoded value
-function hexToStr(hex) {
-  let s = '';
-  for (let i = 0; i < hex.length; i += 2) s += String.fromCharCode(parseInt(hex.slice(i, i+2), 16));
-  return s;
-}
-const JIOTV_TOKEN = atob(hexToStr('536b6c5552553545556b46665331564e5156493d'));
+// No imports needed for piggybacking
 
 // Build headers for JioTV stream API calls
 function streamHeaders(sessionData, config, channelId, authToken, includeCookie = null, clientIp = null) {
@@ -57,175 +46,82 @@ function streamHeaders(sessionData, config, channelId, authToken, includeCookie 
 
 // Main handler: GET /live.m3u8?id=CHANNEL_ID&token=TOKEN
 export async function handleLive(channelId, sessionData, config, baseUrl, env, request) {
-  if (!channelId || !sessionData) {
-    return errorM3U8('Missing channel ID or not logged in');
+  if (!channelId) {
+    return errorM3U8('Missing channel ID');
   }
 
-  // Validate token param (same security check as PHP)
-  // (Already validated in router)
-
-  let streamUrl = null;
-
-  // Check stream URL cache
-  const cacheKey = `stream_${channelId}`;
-  if (config.JITENDRA_UNIVERSE?.live_cache) {
-    try {
-      const cached = await env.KV.get(cacheKey, 'json');
-      if (cached?.result) {
-        const expMatch = cached.result.match(/~exp=(\d+)/);
-        if (expMatch && parseInt(expMatch[1]) > Date.now() / 1000 + 30) {
-          streamUrl = cached.result;
+  try {
+    // 1. Get or create a session cookie from teachub
+    let sessionId = await env.KV.get('teachub_session');
+    
+    if (!sessionId) {
+      const sessionReq = await fetch('https://04jio.teachub.workers.dev/create-session', {
+        headers: {
+          'Origin': 'https://2p.teachub.workers.dev',
+          'User-Agent': 'Mozilla/5.0'
+        }
+      });
+      
+      if (!sessionReq.ok) {
+        console.log('sessionReq failed:', sessionReq.status, await sessionReq.text());
+        return errorM3U8(`Proxy session creation failed: ${sessionReq.status}`);
+      }
+      
+      const setCookie = sessionReq.headers.get('set-cookie');
+      console.log('setCookie header:', setCookie);
+      if (setCookie) {
+        // extract sessionId=XXXX;
+        const match = setCookie.match(/session=([^;]+)/);
+        if (match) {
+          sessionId = match[1];
+          // Cache the session for 3 hours (10800 seconds)
+          await env.KV.put('teachub_session', sessionId, { expirationTtl: 10800 });
         }
       }
-    } catch {}
-  }
-
-  if (!streamUrl) {
-    // Fetch new stream URL from JioTV API
-    const authToken = await getValidToken(sessionData, config);
-    const user = sessionData?.sessionAttributes?.user ?? {};
-    const sv   = config.api_endpoint_static_value ?? {};
-
-    const body = `stream_type=Seek&channel_id=${channelId}`;
-    const headers = [
-      'User-Agent: '    + (sv['User-Agent-OkHttp'] || ''),
-      'Content-Type: application/x-www-form-urlencoded',
-      'appkey: '        + (sv.appkey || ''),
-      'devicetype: '    + (sv.deviceType || ''),
-      'os: '            + (sv.os || ''),
-      'deviceid: '      + (sessionData?.deviceId || ''),
-      'versionCode: '   + (sv.versionCode || ''),
-      'osversion: '     + (sv.osversion || ''),
-      'dm: '            + (sv.dm || ''),
-      'x-platform: '   + (sv['x-platform'] || ''),
-      'uniqueid: '      + (user.unique || ''),
-      'usergroup: '     + (sv.usergroup || ''),
-      'languageid: 6',
-      'userid: ril'     + (user.subscriberId || ''),
-      'sid: '           + (sessionData?.analyticsId || ''),
-      'crmid: '         + (user.subscriberId || ''),
-      'isott: '         + (sv.isott || ''),
-      'channel_id: '    + channelId,
-      'langid: ',
-      'camid: ',
-      'accesstoken: '   + authToken,
-      'ssotoken: '      + (sessionData?.ssoToken || ''),
-      'subscriberid: '  + (user.subscriberId || ''),
-      'lbcookie: 1',
-    ].filter(h => h.trim() && !h.endsWith(': '));
-
-    const clientIp = request?.headers?.get('cf-connecting-ip');
-    if (clientIp) {
-      headers.push('X-Forwarded-For: ' + clientIp);
     }
 
-
-    const getUrl = decodeApiUrl(config.jiotv_api?.geturl);
-    const result = await jioFetch(getUrl, headers, 'POST', body);
-
-    let json = {};
-    try { json = JSON.parse(result.data); } catch {}
-
-    if (json.code !== 200 || !json.result) {
-      return errorM3U8(`JioTV API error: ${json.message || result.info.http_code}`);
+    if (!sessionId) {
+      return errorM3U8('Could not obtain proxy session ID');
     }
 
-    streamUrl = json.result;
-
-    // Cache the stream URL
-    if (config.JITENDRA_UNIVERSE?.live_cache) {
-      try {
-        await env.KV.put(cacheKey, JSON.stringify(json), { expirationTtl: 300 });
-      } catch {}
-    }
-  }
-
-  // Fetch the M3U8 manifest with auth headers
-  return await fetchAndRewriteM3U8(streamUrl, channelId, sessionData, config, baseUrl, env, request);
-}
-
-async function fetchAndRewriteM3U8(streamUrl, channelId, sessionData, config, baseUrl, env, request) {
-  const authToken = await getValidToken(sessionData, config);
-  const clientIp = request?.headers?.get('cf-connecting-ip') || '';
-  const headers = streamHeaders(sessionData, config, channelId, authToken, null, clientIp);
-
-  const result = await jioFetch(streamUrl, headers, 'GET', null);
-
-  if (result.info.http_code !== 200 || (!result.data.includes('#EXTM3U') && !result.data.includes('#EXTINF'))) {
-    return new Response(result.data, {
-      status: 403,
+    // 2. Fetch the M3U8 from teachub's live.m3u8 endpoint
+    const m3u8Req = await fetch(`https://04jio.teachub.workers.dev/live.m3u8?id=${channelId}`, {
       headers: {
-        'Content-Type': 'text/plain',
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
+        'Origin': 'https://2p.teachub.workers.dev',
+        'Cookie': `session=${sessionId}`,
+        'User-Agent': 'Mozilla/5.0'
       }
     });
-  }
 
-  // Extract Set-Cookie from response (used for subsequent segment requests)
-  const setCookie = result.responseHeaders['set-cookie'] || '';
-  const cookieValue = setCookie.split(';')[0] || '';
+    if (!m3u8Req.ok) {
+      return errorM3U8(`Proxy stream fetch failed: ${m3u8Req.status}`);
+    }
 
-  // Base URL for relative segment paths
-  const urlObj = new URL(streamUrl);
-  const basePath = urlObj.href.replace(/[^/]+$/, ''); // everything up to last /
+    let m3u8Str = await m3u8Req.text();
+    
+    if (m3u8Str.includes('Unauthorized')) {
+      // Session expired, clear cache and try again next time
+      await env.KV.delete('teachub_session');
+      return errorM3U8('Proxy session expired, please refresh the page');
+    }
 
-  // Rewrite M3U8 lines
-  const lines = result.data.split('\n');
-  const out   = [];
-  const thorB64 = encodeURIComponent(btoa(cookieValue));
+    // 3. Rewrite wanda.php to our own baseUrl
+    // Teachub returns either `wanda.php?...` or `/wanda.php?...`
+    m3u8Str = m3u8Str.replace(/(^|\n|\r|URI=")\/?wanda\.php\?/g, `$1${baseUrl}/wanda.php?`);
 
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) { out.push(''); continue; }
-
-    if (line.includes('URI="')) {
-      const uriMatch = line.match(/URI="([^"]+)"/);
-      if (uriMatch) {
-        const extractedUri = uriMatch[1];
-        const absoluteUri = extractedUri.startsWith('http') ? extractedUri : basePath + extractedUri;
-        const encUri = await encrypt(absoluteUri);
-        const encBase = await encrypt(basePath);
-
-        let param = 'pkey';
-        if (line.startsWith('#EXT-X-MEDIA') || extractedUri.includes('.m3u8')) {
-          param = 'hls';
-        }
-        
-        let replaceStr = `URI="${baseUrl}/wanda.php?token=${JIOTV_TOKEN}&id=${channelId}&thor=${thorB64}&jane_foster=${encBase}&${param}=${encUri}"`;
-        
-        const newLine = line.replace(`URI="${extractedUri}"`, replaceStr);
-        out.push(newLine);
-      } else {
-        out.push(line);
+    return new Response(m3u8Str.trim(), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache, no-store'
       }
-    } else if (line.includes('.m3u8') && !line.startsWith('#')) {
-      // Sub-playlist
-      const encBase = await encrypt(basePath);
-      const encFull = await encrypt(basePath + line);
-      out.push(`${baseUrl}/wanda.php?token=${JIOTV_TOKEN}&thor=${thorB64}&id=${channelId}&jane_foster=${encBase}&hls=${encFull}`);
-    } else if (line.includes('.ts') && !line.startsWith('#')) {
-      // TS segment — replace with .jitendraunatti per PHP convention
-      const encBase = await encrypt(basePath);
-      const encFull = await encrypt(basePath + line);
-      const wandaLine = `${baseUrl}/wanda.php?token=${JIOTV_TOKEN}&thor=${thorB64}&id=${channelId}&jane_foster=${encBase}&marvel=${encFull}`;
-      out.push(wandaLine.replace('.ts', '.jitendraunatti'));
-    } else {
-      out.push(raw);
-    }
+    });
+    
+  } catch (err) {
+    console.error('Teachub Proxy Error:', err);
+    return errorM3U8(`Proxy error: ${err.message}`);
   }
-
-  const devBy = config.JITENDRA_UNIVERSE?.['x-developed-by'] || 'JioTV';
-  const tok   = config.JITENDRA_UNIVERSE?.token || '';
-  let m3u8 = out.join('\n');
-  m3u8 = m3u8.replace('#EXTM3U', `#EXTM3U\n#DEVELOPED_BY_${devBy}\n#AUTHOR-${tok}`);
-
-  return new Response(m3u8.trim(), {
-    headers: {
-      'Content-Type': 'application/vnd.apple.mpegurl',
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'no-cache, no-store',
-    }
-  });
 }
 
 function errorM3U8(msg) {
@@ -237,3 +133,4 @@ function errorM3U8(msg) {
     }
   });
 }
+

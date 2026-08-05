@@ -18,8 +18,8 @@ function hexToStr(hex) {
 const JIOTV_TOKEN = atob(hexToStr('536b6c5552553545556b46665331564e5156493d'));
 
 // Build segment request headers (with auth + optional cookie)
-function buildSegHeaders(sessionData, config, channelId, authToken, clientIp) {
-  return [
+function buildSegHeaders(sessionData, config, channelId, authToken, clientIp, thorB64) {
+  const h = [
     'User-Agent: ' + (config.api_endpoint_static_value?.['User-Agent-OkHttp'] || ''),
     'crmid: '      + (sessionData?.sessionAttributes?.user?.subscriberId || ''),
     'deviceId: '   + (sessionData?.deviceId || ''),
@@ -31,7 +31,14 @@ function buildSegHeaders(sessionData, config, channelId, authToken, clientIp) {
     'uniqueId: '   + (sessionData?.sessionAttributes?.user?.unique || ''),
     'Connection: Keep-Alive',
     clientIp ? 'X-Forwarded-For: ' + clientIp : ''
-  ].filter(h => h.trim() && !h.endsWith(': '));
+  ];
+  if (thorB64) {
+    try {
+      const decodedCookie = atob(hexToStr(thorB64));
+      h.push('Cookie: ' + decodedCookie);
+    } catch(e) {}
+  }
+  return h.filter(x => x && x.trim() && !x.endsWith(': '));
 }
 
 export async function handleWanda(request, sessionData, config, baseUrl) {
@@ -43,18 +50,20 @@ export async function handleWanda(request, sessionData, config, baseUrl) {
   const marvel     = params.get('marvel')      || '';  // .ts segment
   const pkey       = params.get('pkey')        || '';  // encryption key URL
 
-  const authToken = await getValidToken(sessionData, config);
   const clientIp = request?.headers?.get('cf-connecting-ip') || '';
-  const headers = buildSegHeaders(sessionData, config, channelId, authToken, clientIp);
+  const headers = buildSegHeaders(sessionData, config, channelId, null, clientIp, thorB64);
 
   // ── Sub-playlist M3U8 ─────────────────────────────────────
   if (hls) {
     let realUrl = await decrypt(hls);
     if (!realUrl) return new Response('# Decryption failed', { status: 400 });
     realUrl = realUrl.replace('.jitendraunatti', '.m3u8');
+    console.log("Fetching HLS:", realUrl);
 
     const result  = await jioFetch(realUrl, headers, 'GET', null);
+    console.log("HLS Result Code:", result.info.http_code);
     if (result.info.http_code !== 200 || (!result.data.includes('#EXTM3U') && !result.data.includes('#EXTINF'))) {
+      console.log("HLS failed. Data:", result.data);
       return new Response(result.data, { status: 403 });
     }
     const decBase = (await decrypt(janeFoster)) || janeFoster;

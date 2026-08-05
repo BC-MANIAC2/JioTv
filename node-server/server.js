@@ -131,7 +131,6 @@ app.get('/live.m3u8', async (req, res) => {
 app.get('/wanda.php', async (req, res) => {
   const sessionData = getSessionData(req);
   const config = await getConfig(env);
-  if (!sessionData) return res.status(403).send('Not logged in');
   if (req.query.token !== 'JITENDRA_KUMAR') return res.status(403).send('Invalid token');
 
   // Convert Express query to URLSearchParams for wanda.js compatibility
