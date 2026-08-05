@@ -184,9 +184,10 @@
 
             if (sessionData && request.uris[0].includes('/proxy/')) {
               request.headers['x-jiotv-sess'] = sessionData;
+              request.headers['x-jiotv-channelid'] = id.toString();
             }
 
-            if (queryParams && !request.uris[0].includes('tv.media.jio.com')) {
+            if (queryParams) {
               const qs = queryParams.substring(1);
               if (!request.uris[0].includes(qs)) {
                 request.uris[0] += (request.uris[0].includes('?') ? '&' : '?') + qs;
@@ -238,7 +239,7 @@
                   newUrl = '/proxy/' + newUrl;
                 }
 
-                if (queryParams && !newUrl.includes('tv.media.jio.com')) {
+                if (queryParams) {
                   const qs = queryParams.substring(1);
                   if (!newUrl.includes(qs)) {
                     newUrl += (newUrl.includes('?') ? '&' : '?') + qs;
@@ -247,6 +248,7 @@
                 xhr.open('GET', newUrl, true);
                 if (sessionData && newUrl.includes('/proxy/')) {
                   xhr.setRequestHeader('x-jiotv-sess', sessionData);
+                  xhr.setRequestHeader('x-jiotv-channelid', id.toString());
                 }
               }
             });

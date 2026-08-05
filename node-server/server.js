@@ -197,25 +197,35 @@ app.use('/proxy', async (req, res) => {
   } else if (targetUrl.startsWith('http:/') && !targetUrl.startsWith('http://')) {
     targetUrl = targetUrl.replace('http:/', 'http://');
   }
+  // req.url contains the full query string already, so we don't need to append it again.
+  // express's req.url is the path + query string of the matched sub-route.
   
   console.log(`[PROXY] Fetching: ${targetUrl}`);
   if (!targetUrl || !targetUrl.startsWith('http')) return res.status(400).send('Missing url');
-
-  // JioTV's key server rejects requests if CDN tokens are present in the query string
-  if (targetUrl.includes('tv.media.jio.com') && targetUrl.includes('?')) {
-    targetUrl = targetUrl.split('?')[0];
-  }
 
   const fetchHeaders = {
     'User-Agent': 'ExoPlayerLoader', // Standard Android Player UA
     'Accept': '*/*'
   };
 
+  // JioTV's key server rejects requests if CDN tokens are present in the query string
+  // It expects the hdnea token as a Cookie instead.
+  if (targetUrl.includes('tv.media.jio.com') && targetUrl.includes('?')) {
+    const urlObj = new URL(targetUrl);
+    const hdnea = urlObj.searchParams.get('__hdnea__') || urlObj.searchParams.get('hdnea');
+    if (hdnea) {
+      fetchHeaders['Cookie'] = `__hdnea__=${hdnea}`;
+    }
+    targetUrl = targetUrl.split('?')[0];
+  }
+
   const sessionData = getSessionData(req);
+  const channelId = req.headers['x-jiotv-channelid'] || '100';
+
   if (sessionData && targetUrl.includes('jio.com')) {
     const user = sessionData.sessionAttributes?.user ?? {};
     fetchHeaders['appkey'] = 'NzNiMDhlYzQyNjJm';
-    fetchHeaders['channelid'] = '100';
+    fetchHeaders['channelid'] = channelId;
     fetchHeaders['crmid'] = user.subscriberId || '';
     fetchHeaders['deviceId'] = sessionData.deviceId || '300653d8650a2';
     fetchHeaders['devicetype'] = 'phone';
