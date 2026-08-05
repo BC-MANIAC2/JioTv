@@ -13,6 +13,7 @@ const app = express();
 app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(express.raw({ type: 'application/octet-stream' })); // For DRM Widevine challenges
 
 // Serve static frontend files
 app.use(express.static('public'));
@@ -168,32 +169,45 @@ app.get('/api/stream', async (req, res) => {
       
       if (json.code === 200 && json.result) {
         let streamUrl = json.result;
-        const isDash = streamUrl.includes('.mpd');
+        let isDash = streamUrl.includes('.mpd');
+
+        let drmUrl = '';
 
         // JioTV sometimes returns a stale index.m3u8 that returns 404 on the CDN.
         // We must fallback to high/medium/low directly if index.m3u8 is dead.
         if (streamUrl.includes('.m3u8') && json.bitrates) {
           const candidates = [streamUrl, json.bitrates.high, json.bitrates.medium, json.bitrates.low].filter(Boolean);
-          console.log(`[API STREAM] Checking candidates for ${id}:`, candidates.length);
-          for (const cand of candidates) {
+          const uniqueCandidates = [...new Set(candidates)];
+          console.log(`[API STREAM] Checking candidates for ${id}:`, uniqueCandidates.length);
+          let hlsValid = false;
+          for (const cand of uniqueCandidates) {
             try {
               // The API already includes the __hdnea__ token in these URLs, so we can just HEAD them
               const check = await fetch(cand, { method: 'HEAD' });
               console.log(`[API STREAM] Candidate ${cand.split('?')[0]} returned ${check.status}`);
               if (check.status !== 404) {
                 streamUrl = cand;
+                hlsValid = true;
                 break;
               }
             } catch (e) {
               console.log(`[API STREAM] Candidate check failed for ${cand.split('?')[0]}:`, e.message);
             }
           }
+
+          if (!hlsValid && json.mpd && json.mpd.result) {
+            console.log(`[API STREAM] ALL HLS candidates 404. Falling back to DASH (mpd) for ${id}.`);
+            streamUrl = json.mpd.result;
+            isDash = true;
+            drmUrl = json.mpd.key;
+          }
         }
 
         // Proxy the stream URL through our generic proxy to bypass CORS
         return res.json({
           type: isDash ? 'dash' : 'hls',
-          url: `/proxy/${streamUrl}`
+          url: `/proxy/${streamUrl}`,
+          drmKeyUrl: isDash ? drmUrl : undefined
         });
       } else {
         console.error("Native stream fetch returned non-200:", result.info.http_code, json);
@@ -300,7 +314,7 @@ app.use('/proxy', async (req, res) => {
 });
 
 // Widevine DRM License Proxy
-app.post('/wanda_drm.php', async (req, res) => {
+app.post('/api/drm', async (req, res) => {
   const sessionData = getSessionData(req);
   if (!sessionData || !sessionData.authToken) return res.status(401).send('Not logged in');
   
@@ -308,12 +322,8 @@ app.post('/wanda_drm.php', async (req, res) => {
   const user = sessionData.sessionAttributes?.user ?? {};
   const sv = config.api_endpoint_static_value ?? {};
   
-  // Read binary challenge from request body
-  const challengeBuffer = await new Promise((resolve) => {
-    const chunks = [];
-    req.on('data', c => chunks.push(c));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-  });
+  // Read binary challenge from request body (parsed by express.raw)
+  const challengeBuffer = req.body;
 
   const headers = [
     'User-Agent: ' + (sv['User-Agent-OkHttp'] || ''),
@@ -328,7 +338,7 @@ app.post('/wanda_drm.php', async (req, res) => {
   ];
 
   // The DRM endpoint is usually hardcoded or in config. Let's use the standard one.
-  const drmUrl = 'https://tv.media.jio.com/apis/v1.4/getdrmkey/getdrmkey';
+  const drmUrl = req.query.url || 'https://tv.media.jio.com/apis/v1.4/getdrmkey/getdrmkey';
   
   try {
     const result = await jioFetch(drmUrl, headers, 'POST', challengeBuffer);

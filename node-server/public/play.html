@@ -202,7 +202,7 @@
           player.configure({
             drm: {
               servers: {
-                'com.widevine.alpha': '/wanda_drm.php'
+                'com.widevine.alpha': data.drmKeyUrl ? `/api/drm?url=${encodeURIComponent(data.drmKeyUrl)}` : '/api/drm'
               }
             }
           });
