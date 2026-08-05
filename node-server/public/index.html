@@ -184,7 +184,7 @@
 
     // --- Authentication Logic ---
     function checkLoginState() {
-      if (document.cookie.includes('jiotv_sess=')) {
+      if (localStorage.getItem('jiotv_sess')) {
         document.getElementById('loginBtn').style.display = 'none';
         document.getElementById('loggedInState').style.display = 'block';
       } else {
@@ -245,6 +245,7 @@
         });
         const data = await res.json();
         if (data.sessionData) {
+          localStorage.setItem('jiotv_sess', JSON.stringify(data.sessionData));
           closeLoginModal();
           checkLoginState();
         } else {

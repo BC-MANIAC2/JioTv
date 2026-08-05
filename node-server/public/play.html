@@ -156,7 +156,13 @@
       document.getElementById('loading-overlay').style.display = 'flex';
       
       try {
-        const res = await fetch(`/api/stream?id=${id}&token=JITENDRA_KUMAR`);
+        const sessionData = localStorage.getItem('jiotv_sess');
+        const headers = {};
+        if (sessionData) {
+          headers['x-jiotv-sess'] = sessionData;
+        }
+
+        const res = await fetch(`/api/stream?id=${id}&token=JITENDRA_KUMAR`, { headers });
         const data = await res.json();
         
         if (data.error) throw new Error(data.error);

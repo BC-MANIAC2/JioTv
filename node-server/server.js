@@ -17,8 +17,16 @@ app.use(express.json());
 // Serve static frontend files
 app.use(express.static('public'));
 
-// Helper to extract sessionData from Express req cookies string
+// Helper to extract sessionData from Express req
 function getSessionData(req) {
+  const customHeader = req.headers['x-jiotv-sess'];
+  if (customHeader) {
+    try {
+      return JSON.parse(customHeader);
+    } catch (e) {}
+  }
+  
+  // Fallback to cookie for legacy support if needed
   const cookieHeader = req.headers.cookie || '';
   const match = cookieHeader.match(/jiotv_sess=([^;]+)/);
   if (match) {
