@@ -98,3 +98,33 @@ Your server is now permanently running in the background of your TV.
 > **💡 Pro Tip for the Future:**
 > If you ever restart your TV or turn it off at the wall plug, the server will stop. To start it again, just open the **Termux** app on your TV and type this single command:
 > `cd JioTv/node-server && node server.js`
+
+---
+
+## 🚀 Step 6: Auto-Start on TV Boot (Optional)
+
+If you don't want to manually open Termux every time your TV restarts, you can set it up to run permanently and automatically!
+
+**1. Install Termux:Boot Add-on**
+Just like you installed Termux, you need to install its official add-on called **Termux:Boot**.
+- If you used F-Droid to install Termux, search for "Termux:Boot" in F-Droid and install it.
+- **Important:** After installing, open the **Termux:Boot** app at least once. It will just show a blank screen or a simple message, but this registers it with the Android system.
+
+**2. Prevent Android from killing the server**
+- Go to your TV's **Settings** -> **Apps** -> **Termux**.
+- Find the **Battery** or **Battery Optimization** setting and set it to **"Unrestricted"** or **"Not Optimized"**.
+
+**3. Create the Auto-Start Script**
+Typing long commands on a TV remote is painful! So I've made a quick setup script for you.
+Open your regular **Termux** app and type these two commands (press Enter after each):
+
+```bash
+cd ~/JioTv && git pull
+```
+*(This pulls the latest files, including the new auto-start script)*
+
+```bash
+bash setup-autostart.sh
+```
+
+**You're done!** Now, whenever your TV turns on, Termux will quietly wake up in the background, hold a wake-lock so it doesn't fall asleep, and start the JioTV server automatically. You can just open your browser and watch!
