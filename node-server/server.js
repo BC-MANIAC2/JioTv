@@ -200,6 +200,12 @@ app.use('/proxy', async (req, res) => {
   
   console.log(`[PROXY] Fetching: ${targetUrl}`);
   if (!targetUrl || !targetUrl.startsWith('http')) return res.status(400).send('Missing url');
+
+  // JioTV's key server rejects requests if CDN tokens are present in the query string
+  if (targetUrl.includes('tv.media.jio.com') && targetUrl.includes('?')) {
+    targetUrl = targetUrl.split('?')[0];
+  }
+
   const fetchHeaders = {
     'User-Agent': 'ExoPlayerLoader', // Standard Android Player UA
     'Accept': '*/*'

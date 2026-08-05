@@ -186,7 +186,7 @@
               request.headers['x-jiotv-sess'] = sessionData;
             }
 
-            if (queryParams) {
+            if (queryParams && !request.uris[0].includes('tv.media.jio.com')) {
               const qs = queryParams.substring(1);
               if (!request.uris[0].includes(qs)) {
                 request.uris[0] += (request.uris[0].includes('?') ? '&' : '?') + qs;
@@ -238,7 +238,7 @@
                   newUrl = '/proxy/' + newUrl;
                 }
 
-                if (queryParams) {
+                if (queryParams && !newUrl.includes('tv.media.jio.com')) {
                   const qs = queryParams.substring(1);
                   if (!newUrl.includes(qs)) {
                     newUrl += (newUrl.includes('?') ? '&' : '?') + qs;
