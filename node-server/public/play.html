@@ -202,7 +202,7 @@
           player.configure({
             drm: {
               servers: {
-                'com.widevine.alpha': data.drmKeyUrl ? `/api/drm?url=${encodeURIComponent(data.drmKeyUrl)}` : '/api/drm'
+                'com.widevine.alpha': data.drmKeyUrl ? `/api/drm?url=${encodeURIComponent(data.drmKeyUrl)}&id=${id}&streamUrl=${encodeURIComponent(data.originalUrl)}` : `/api/drm?id=${id}&streamUrl=${encodeURIComponent(data.originalUrl)}`
               }
             }
           });

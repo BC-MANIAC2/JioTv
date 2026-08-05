@@ -207,6 +207,7 @@ app.get('/api/stream', async (req, res) => {
         return res.json({
           type: isDash ? 'dash' : 'hls',
           url: `/proxy/${streamUrl}`,
+          originalUrl: streamUrl,
           drmKeyUrl: isDash ? drmUrl : undefined
         });
       } else {
@@ -315,8 +316,12 @@ app.use('/proxy', async (req, res) => {
 
 // Widevine DRM License Proxy
 app.post('/api/drm', async (req, res) => {
+  console.log(`[DRM PROXY] Request received for DRM`);
   const sessionData = getSessionData(req);
-  if (!sessionData || !sessionData.authToken) return res.status(401).send('Not logged in');
+  if (!sessionData || !sessionData.authToken) {
+    console.log(`[DRM PROXY] Missing session data or auth token`);
+    return res.status(401).send('Not logged in');
+  }
   
   const config = await getConfig(env);
   const user = sessionData.sessionAttributes?.user ?? {};
@@ -325,27 +330,68 @@ app.post('/api/drm', async (req, res) => {
   // Read binary challenge from request body (parsed by express.raw)
   const challengeBuffer = req.body;
 
+  const srno = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(2, 17); // simple datetime string YYYYMMDDHHMMSSmmm
+  const channelid = req.query.id || '';
+  const streamUrl = req.query.streamUrl || '';
+
+  let cookieHeader = '';
+  if (streamUrl) {
+    try {
+      const headCheck = await fetch(streamUrl, { method: 'HEAD' });
+      let setCookies = headCheck.headers.raw ? headCheck.headers.raw()['set-cookie'] : headCheck.headers.getSetCookie?.();
+      if (!setCookies && headCheck.headers.get) {
+         // fallback for older fetch
+         const singleCookie = headCheck.headers.get('set-cookie');
+         if (singleCookie) setCookies = [singleCookie];
+      }
+      if (setCookies && setCookies.length > 0) {
+        const cookieParts = setCookies.map(c => c.split(';')[0]);
+        cookieHeader = cookieParts.join('; ');
+        console.log(`[DRM PROXY] Extracted cookies from stream:`, cookieHeader);
+      }
+    } catch(e) {
+      console.error(`[DRM PROXY] Failed to fetch cookies from streamUrl:`, e.message);
+    }
+  }
+
   const headers = [
-    'User-Agent: ' + (sv['User-Agent-OkHttp'] || ''),
+    'User-Agent: ' + (sv['User-Agent-OkHttp'] || 'okhttp/4.9.2'),
     'Content-Type: application/octet-stream',
-    'appkey: ' + (sv.appkey || ''),
-    'devicetype: ' + (sv.deviceType || ''),
-    'os: ' + (sv.os || ''),
+    'appkey: ' + (sv.appkey || 'NzNiMDhlYzQyNjJm'),
+    'devicetype: ' + (sv.deviceType || 'phone'),
+    'os: ' + (sv.os || 'android'),
     'deviceid: ' + (sessionData.deviceId || ''),
-    'uniqueid: ' + (user.unique || ''),
+    'uniqueId: ' + (user.unique || ''),
     'accesstoken: ' + sessionData.authToken,
-    'ssotoken: ' + (sessionData.ssoToken || '')
+    'ssotoken: ' + (sessionData.ssoToken || ''),
+    'appName: RJIL_JioTV',
+    'subscriberId: ' + (sessionData.sessionAttributes?.user?.subscriberId || ''),
+    'crmid: ' + (sessionData.sessionAttributes?.user?.subscriberId || ''),
+    'x-platform: android',
+    'srno: ' + srno,
+    'channelid: ' + channelid,
+    'versionCode: 389',
+    'usergroup: tvYR7NSNn7rymo3F',
+    'Connection: keep-alive',
+    'Accept-Encoding: gzip, deflate'
   ];
+
+  if (cookieHeader) {
+    headers.push('Cookie: ' + cookieHeader);
+  }
 
   // The DRM endpoint is usually hardcoded or in config. Let's use the standard one.
   const drmUrl = req.query.url || 'https://tv.media.jio.com/apis/v1.4/getdrmkey/getdrmkey';
   
   try {
+    console.log(`[DRM PROXY] Fetching license from: ${drmUrl}`);
     const result = await jioFetch(drmUrl, headers, 'POST', challengeBuffer);
+    console.log(`[DRM PROXY] Response status: ${result.info.http_code}`);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/octet-stream');
     res.status(result.info.http_code).send(Buffer.from(result.dataBuffer));
   } catch (e) {
+    console.error(`[DRM PROXY] Error:`, e);
     res.status(500).send('DRM proxy error');
   }
 });
