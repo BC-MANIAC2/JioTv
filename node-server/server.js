@@ -116,9 +116,10 @@ app.get('/wanda.php', async (req, res) => {
 
 // Stream resolver: Determines the best stream source (Teachub or Native) and returns JSON
 app.get('/api/stream', async (req, res) => {
-  const sessionData = getSessionData(req);
-  const config = await getConfig(env);
   const id = req.query.id;
+  const sessionData = getSessionData(req);
+  console.log(`[DEBUG] /api/stream requested for id=${id}. SessionData exists: ${!!sessionData}`);
+  const config = await getConfig(env);
   if (!id) return res.status(400).json({ error: 'Missing channel ID' });
   if (req.query.token !== 'JITENDRA_KUMAR') return res.status(403).json({ error: 'Invalid token' });
 
@@ -197,6 +198,7 @@ app.use('/proxy', async (req, res) => {
     targetUrl = targetUrl.replace('http:/', 'http://');
   }
   
+  console.log(`[PROXY] Fetching: ${targetUrl}`);
   if (!targetUrl || !targetUrl.startsWith('http')) return res.status(400).send('Missing url');
   try {
     const response = await fetch(targetUrl, {
