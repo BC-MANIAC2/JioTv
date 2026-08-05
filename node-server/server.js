@@ -165,10 +165,13 @@ app.get('/api/stream', async (req, res) => {
       const result = await jioFetch(getUrl, headers, 'POST', body);
       let json = {};
       try { json = JSON.parse(result.data); } catch {}
-      console.log(`[API STREAM] json response for ${id}:`, JSON.stringify(json).substring(0, 300));
+      console.log(`[API STREAM] json response for ${id}: result=${json.result} bitrates=`, JSON.stringify(json.bitrates));
       
       if (json.code === 200 && json.result) {
         let streamUrl = json.result;
+        // Strip minrate and maxrate to get all available bitrates from the CDN
+        streamUrl = streamUrl.replace(/minrate=\d+&?/g, '').replace(/maxrate=\d+&?/g, '');
+        
         let isDash = streamUrl.includes('.mpd');
 
         let drmUrl = '';
@@ -176,7 +179,9 @@ app.get('/api/stream', async (req, res) => {
         // JioTV sometimes returns a stale index.m3u8 that returns 404 on the CDN.
         // We must fallback to high/medium/low directly if index.m3u8 is dead.
         if (streamUrl.includes('.m3u8') && json.bitrates) {
-          const candidates = [streamUrl, json.bitrates.high, json.bitrates.medium, json.bitrates.low].filter(Boolean);
+          const candidates = [streamUrl, json.bitrates.high, json.bitrates.medium, json.bitrates.low]
+            .filter(Boolean)
+            .map(c => c.replace(/minrate=\d+&?/g, '').replace(/maxrate=\d+&?/g, ''));
           const uniqueCandidates = [...new Set(candidates)];
           console.log(`[API STREAM] Checking candidates for ${id}:`, uniqueCandidates.length);
           let hlsValid = false;
