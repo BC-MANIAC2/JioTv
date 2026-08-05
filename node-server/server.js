@@ -51,10 +51,6 @@ async function sendWebResponse(res, webResponse) {
 const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
 
 app.get('/play.php', (req, res) => {
-  const sessionData = getSessionData(req);
-  if (!sessionData) {
-    return res.redirect('/');
-  }
   
   const id = req.query.id;
   const name = req.query.name || 'JioTV';
@@ -145,109 +141,10 @@ app.get('/wanda.php', async (req, res) => {
 });
 
 // Login endpoints
-app.post('/otpverify.php', async (req, res) => {
-  const config = await getConfig(env);
-  const { otp } = req.body;
-  if (!otp) {
-    return res.json({ success: false, message: 'OTP is required', ui_label: 'Missing OTP ❌' });
-  }
-
-  // Very basic mock of verifyOTP, we don't have request.url in Express, we just pass the URL
-  const mockReq = { url: `http://localhost/otpverify.php?otp=${otp}` };
-  
-  try {
-    const webRes = await verifyOTP(mockReq, config, env);
-    const json = await webRes.json();
-    
-    if (json.success && json.sessionData) {
-      const sessStr = encodeURIComponent(JSON.stringify(json.sessionData));
-      res.cookie('jiotv_sess', sessStr, { maxAge: 9000000000, httpOnly: false });
-    }
-    res.json(json);
-  } catch (e) {
-    res.json({ success: false, message: 'Server Error' });
-  }
-});
-
-app.post('/otpsend.php', async (req, res) => {
-  const config = await getConfig(env);
-  const { mobile } = req.body;
-  if (!mobile) return res.json({ message: 'Missing mobile', ui_label: 'Missing number' });
-  
-  try {
-    const response = await sendOTP(mobile, config, env);
-    res.json(response);
-  } catch (e) {
-    res.json({ message: 'Error', ui_label: 'Server Error' });
-  }
-});
+// OTP and Login routes removed as they are no longer required.
 
 app.get('/', (req, res) => {
-  if (getSessionData(req)) {
-    return res.redirect('/channels.php');
-  }
-  
-  // Return a simple login page for Node
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <title>JioTV Login</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body { background: #121212; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; }
-        .box { background: #1e1e1e; padding: 30px; border-radius: 10px; width: 300px; text-align: center; }
-        input { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: none; box-sizing: border-box; }
-        button { background: #e50914; color: white; border: none; padding: 10px; width: 100%; border-radius: 5px; cursor: pointer; }
-        .hidden { display: none; }
-      </style>
-    </head>
-    <body>
-      <div class="box">
-        <h2>JioTV Login</h2>
-        <div id="msg" style="margin-bottom:15px; color:#ff4b4b;"></div>
-        <div id="step1">
-          <input type="text" id="mobile" placeholder="Mobile (+91)">
-          <button onclick="sendOTP()">Send OTP</button>
-        </div>
-        <div id="step2" class="hidden">
-          <input type="text" id="otp" placeholder="OTP">
-          <button onclick="verifyOTP()">Verify OTP</button>
-        </div>
-      </div>
-      <script>
-        async function sendOTP() {
-          const mobile = document.getElementById('mobile').value;
-          const res = await fetch('/otpsend.php', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'mobile=' + encodeURIComponent(mobile)
-          });
-          const json = await res.json();
-          document.getElementById('msg').innerText = json.ui_label || json.message;
-          if (json.message === 'SUCCESS') {
-            document.getElementById('step1').classList.add('hidden');
-            document.getElementById('step2').classList.remove('hidden');
-          }
-        }
-        async function verifyOTP() {
-          const otp = document.getElementById('otp').value;
-          const res = await fetch('/otpverify.php', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ otp })
-          });
-          const json = await res.json();
-          document.getElementById('msg').innerText = json.ui_label || json.message;
-          if (json.success) {
-            window.location.href = '/channels.php';
-          }
-        }
-      </script>
-    </body>
-    </html>
-  `);
+  res.redirect('/channels.php');
 });
 
 app.get('/channels.php', (req, res) => {
@@ -255,11 +152,16 @@ app.get('/channels.php', (req, res) => {
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta charset="UTF-8"><title>Channels</title><meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>body { background:#000; color:white; font-family:sans-serif; padding:20px; } a { color:#fff; display:block; margin:10px 0; }</style>
+      <meta charset="UTF-8"><title>Channels | JioTV Proxy</title><meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>body { background:#000; color:white; font-family:sans-serif; padding:20px; } a { color:#fff; display:block; margin:10px 0; font-size:18px; text-decoration:none; padding:10px; border:1px solid #333; border-radius:5px; width:200px; text-align:center; background:#111; } a:hover { background:#333; } h2, p { margin-bottom: 20px; }</style>
     </head>
     <body>
+      <h2>Welcome to your free JioTV Proxy!</h2>
+      <p>✅ Authentication Bypassed</p>
+      <p>✅ Akamai CDN Unlocked</p>
+      <br/>
       <h2>Channels</h2>
+      <a href="/play.php?id=144&name=Colors%20HD">Colors HD</a>
       <a href="/play.php?id=180&name=Asianet%20News">Asianet News</a>
       <a href="/play.php?id=559&name=Pogo%20Hindi">Pogo Hindi</a>
     </body>
