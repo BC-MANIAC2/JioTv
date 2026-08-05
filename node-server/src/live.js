@@ -105,9 +105,9 @@ export async function handleLive(channelId, sessionData, config, baseUrl, env, r
       return errorM3U8('Proxy session expired, please refresh the page');
     }
 
-    // 3. Rewrite wanda.php to Teachub's working endpoint (04jio instead of 2p which returns 404)
+    // 3. Rewrite wanda.php to our own baseUrl
     // Teachub returns either `wanda.php?...` or `/wanda.php?...`
-    m3u8Str = m3u8Str.replace(/(^|\n|\r|URI=")(?:https:\/\/2p\.teachub\.workers\.dev)?\/?wanda\.php\?/g, `$1https://04jio.teachub.workers.dev/wanda.php?`);
+    m3u8Str = m3u8Str.replace(/(^|\n|\r|URI=")(?:https:\/\/04jio\.teachub\.workers\.dev)?\/?wanda\.php\?/g, `$1${baseUrl}/wanda.php?`);
 
     return new Response(m3u8Str.trim(), {
       status: 200,

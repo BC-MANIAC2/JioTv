@@ -1,0 +1,21 @@
+HTTP/1.1 200 OK
+X-Powered-By: Express
+access-control-allow-origin: *
+access-control-allow-headers: Content-Type, Accept, Origin, X-Requested-With
+access-control-allow-methods: GET, HEAD, OPTIONS
+access-control-expose-headers: Content-Length, Content-Range, Accept-Ranges
+alt-svc: h3=":443"; ma=86400
+cache-control: no-cache
+cf-ray: a26414f27a0efce2-SIN
+connection: keep-alive
+content-encoding: br
+content-type: application/vnd.apple.mpegurl
+date: Wed, 05 Aug 2026 07:27:53 GMT
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=FZE3SlsISMIlAxfQVa%2BVFmHMpAXOrfFt8eog3DEL96mQ%2B75PVFswkvTbNXj2xspBPY0cijaDkHFXNY1HfgWwuuNwBSud%2BkmXTI3AfBHefVrfQ3oRv%2FnlpF%2BKXlGsrw4ZL5qnWGFw5HLhM9SG"}]}
+server: cloudflare
+transfer-encoding: chunked
+vary: Origin
+Content-Length: 15281
+ETag: W/"3bb1-R+UTBDQq/rsS+C44MRi4IjEN6VI"
+
