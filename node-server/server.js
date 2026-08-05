@@ -288,10 +288,45 @@ app.use('/proxy', async (req, res) => {
   }
 
   try {
-    const response = await fetch(targetUrl, {
+    let response = await fetch(targetUrl, {
       headers: fetchHeaders,
       redirect: 'follow'
     });
+
+    // Auto-refresh token if 403 (Token Expired)
+    if ((response.status === 403 || response.status === 401) && targetUrl.includes('__hdnea__') && channelId !== '100' && sessionData) {
+      console.log(`[PROXY] 403 Forbidden for channel ${channelId}. Attempting to fetch a fresh token...`);
+      try {
+        const user = sessionData.sessionAttributes?.user ?? {};
+        const freshHeaders = {
+          'appkey': 'NzNiMDhlYzQyNjJm',
+          'channelId': channelId,
+          'channel_id': channelId,
+          'crmid': user.subscriberId || '',
+          'deviceId': sessionData.deviceId || '300653d8650a2',
+          'devicetype': 'phone',
+          'os': 'android',
+          'ssotoken': sessionData.ssoToken || '',
+          'subscriberId': user.subscriberId || '',
+          'uniqueId': user.unique || ''
+        };
+        const getUrl = decodeApiUrl(config.jiotv_api?.geturl);
+        const body = `stream_type=Seek&channel_id=${channelId}`;
+        const result = await jioFetch(getUrl, freshHeaders, 'POST', body);
+        const json = JSON.parse(result.data);
+        if (json.code === 200 && json.result) {
+          const freshHdneaMatch = json.result.match(/__hdnea__=([^&]+)/);
+          if (freshHdneaMatch) {
+            targetUrl = targetUrl.replace(/__hdnea__=[^&]+/, `__hdnea__=${freshHdneaMatch[1]}`);
+            console.log(`[PROXY] Retrying request with fresh token...`);
+            response = await fetch(targetUrl, { headers: fetchHeaders, redirect: 'follow' });
+          }
+        }
+      } catch (e) {
+        console.error(`[PROXY] Failed to fetch fresh token: ${e.message}`);
+      }
+    }
+
     if (targetUrl.includes('.key') || targetUrl.includes('.pkey')) {
       console.log(`[KEY PROXY] Response status: ${response.status}`);
       if (!response.ok) {
