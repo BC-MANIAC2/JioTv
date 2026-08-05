@@ -297,33 +297,51 @@ app.use('/proxy', async (req, res) => {
     if ((response.status === 403 || response.status === 401) && targetUrl.includes('__hdnea__') && channelId !== '100' && sessionData) {
       console.log(`[PROXY] 403 Forbidden for channel ${channelId}. Attempting to fetch a fresh token...`);
       try {
-        const user = sessionData.sessionAttributes?.user ?? {};
-        const freshHeaders = {
-          'appkey': 'NzNiMDhlYzQyNjJm',
-          'channelId': channelId,
-          'channel_id': channelId,
-          'crmid': user.subscriberId || '',
-          'deviceId': sessionData.deviceId || '300653d8650a2',
-          'devicetype': 'phone',
-          'os': 'android',
-          'ssotoken': sessionData.ssoToken || '',
-          'subscriberId': user.subscriberId || '',
-          'uniqueId': user.unique || ''
-        };
         const { getConfig, decodeApiUrl } = await import('./src/config.js');
         const { jioFetch } = await import('./src/jio.js');
         const config = await getConfig(env);
+        const user = sessionData.sessionAttributes?.user ?? {};
+        const sv = config.api_endpoint_static_value ?? {};
+        const freshHeaders = [
+          'User-Agent: '    + (sv['User-Agent-OkHttp'] || ''),
+          'Content-Type: application/x-www-form-urlencoded',
+          'appkey: '        + (sv.appkey || ''),
+          'devicetype: '    + (sv.deviceType || ''),
+          'os: '            + (sv.os || ''),
+          'deviceid: '      + (sessionData.deviceId || ''),
+          'versionCode: '   + (sv.versionCode || ''),
+          'osversion: '     + (sv.osversion || ''),
+          'dm: '            + (sv.dm || ''),
+          'x-platform: '   + (sv['x-platform'] || ''),
+          'uniqueid: '      + (user.unique || ''),
+          'usergroup: '     + (sv.usergroup || ''),
+          'languageid: 6',
+          'userid: ril'     + (user.subscriberId || ''),
+          'sid: '           + (sessionData.analyticsId || ''),
+          'crmid: '         + (user.subscriberId || ''),
+          'isott: '         + (sv.isott || ''),
+          'channel_id: '    + channelId,
+          'accesstoken: '   + sessionData.authToken,
+          'ssotoken: '      + (sessionData.ssoToken || ''),
+          'subscriberid: '  + (user.subscriberId || ''),
+          'lbcookie: 1'
+        ];
         const getUrl = decodeApiUrl(config.jiotv_api?.geturl);
         const body = `stream_type=Seek&channel_id=${channelId}`;
         const result = await jioFetch(getUrl, freshHeaders, 'POST', body);
         const json = JSON.parse(result.data);
-        if (json.code === 200 && json.result) {
-          const freshHdneaMatch = json.result.match(/__hdnea__=([^&]+)/);
+        if (json.code === 200) {
+          const freshUrl = (json.result || '') + (json.mpd ? (json.mpd.result || '') : '');
+          const freshHdneaMatch = freshUrl.match(/__hdnea__=([^&]+)/);
           if (freshHdneaMatch) {
             targetUrl = targetUrl.replace(/__hdnea__=[^&]+/, `__hdnea__=${freshHdneaMatch[1]}`);
-            console.log(`[PROXY] Retrying request with fresh token...`);
+            console.log(`[PROXY] Successfully extracted new token. Retrying request...`);
             response = await fetch(targetUrl, { headers: fetchHeaders, redirect: 'follow' });
+          } else {
+            console.error(`[PROXY] Could not find __hdnea__ in fresh URL response!`);
           }
+        } else {
+          console.error(`[PROXY] JioTV API failed to return fresh token: ${json.message || json.code}`);
         }
       } catch (e) {
         console.error(`[PROXY] Failed to fetch fresh token: ${e.message}`);
