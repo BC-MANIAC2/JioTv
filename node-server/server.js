@@ -200,12 +200,30 @@ app.use('/proxy', async (req, res) => {
   
   console.log(`[PROXY] Fetching: ${targetUrl}`);
   if (!targetUrl || !targetUrl.startsWith('http')) return res.status(400).send('Missing url');
+  const fetchHeaders = {
+    'User-Agent': 'ExoPlayerLoader', // Standard Android Player UA
+    'Accept': '*/*'
+  };
+
+  const sessionData = getSessionData(req);
+  if (sessionData && targetUrl.includes('jio.com')) {
+    const user = sessionData.sessionAttributes?.user ?? {};
+    fetchHeaders['appkey'] = 'NzNiMDhlYzQyNjJm';
+    fetchHeaders['channelid'] = '100';
+    fetchHeaders['crmid'] = user.subscriberId || '';
+    fetchHeaders['deviceId'] = sessionData.deviceId || '300653d8650a2';
+    fetchHeaders['devicetype'] = 'phone';
+    fetchHeaders['os'] = 'android';
+    fetchHeaders['osVersion'] = '11';
+    fetchHeaders['srno'] = '230111140722';
+    fetchHeaders['ssotoken'] = sessionData.ssoToken || '';
+    fetchHeaders['subscriberid'] = user.subscriberId || '';
+    fetchHeaders['uniqueid'] = user.unique || '';
+  }
+
   try {
     const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'ExoPlayerLoader', // Standard Android Player UA
-        'Accept': '*/*'
-      }
+      headers: fetchHeaders
     });
     res.status(response.status);
     response.headers.forEach((val, key) => res.setHeader(key, val));
