@@ -250,25 +250,35 @@ app.post('/wanda_drm.php', async (req, res) => {
 
 // Login endpoints
 app.post('/api/login/send-otp', async (req, res) => {
-  const { number } = req.body;
-  if (!number) return res.status(400).json({ message: 'Number is required' });
-  const config = await getConfig(env);
-  const result = await sendOTP(number, config, env);
-  res.json(result);
+  try {
+    const { number } = req.body;
+    if (!number) return res.status(400).json({ message: 'Number is required' });
+    const config = await getConfig(env);
+    const result = await sendOTP(number, config, env);
+    res.json(result);
+  } catch (err) {
+    console.error("send-otp error:", err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 });
 
 app.post('/api/login/verify-otp', async (req, res) => {
-  const { number, otp } = req.body;
-  if (!number || !otp) return res.status(400).json({ message: 'Number and OTP required' });
-  const config = await getConfig(env);
-  const result = await verifyOTP(number, otp, config, env);
-  
-  if (result.sessionData) {
-    // Set cookie that the frontend will send on subsequent requests
-    const cookieVal = encodeURIComponent(JSON.stringify(result.sessionData));
-    res.cookie('jiotv_sess', cookieVal, { maxAge: 90000000, httpOnly: false });
+  try {
+    const { otp } = req.body;
+    if (!otp) return res.status(400).json({ message: 'OTP required' });
+    const config = await getConfig(env);
+    const result = await verifyOTP(otp, config, env);
+    
+    if (result && result.sessionData) {
+      // Set cookie that the frontend will send on subsequent requests
+      const cookieVal = encodeURIComponent(JSON.stringify(result.sessionData));
+      res.cookie('jiotv_sess', cookieVal, { maxAge: 90000000, httpOnly: false });
+    }
+    res.json(result || { message: 'Unknown error' });
+  } catch (err) {
+    console.error("verify-otp error:", err);
+    res.status(500).json({ message: 'Internal server error' });
   }
-  res.json(result);
 });
 
 const PORT = process.env.PORT || 3000;

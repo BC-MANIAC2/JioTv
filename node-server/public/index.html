@@ -226,6 +226,7 @@
           document.getElementById('loginMsg').textContent = data.ui_label || data.message;
         }
       } catch (err) {
+        document.getElementById('loginMsg').style.color = '#ff4b4b';
         document.getElementById('loginMsg').textContent = 'Network error';
       }
       document.getElementById('sendOtpBtn').textContent = 'Send OTP';
@@ -251,6 +252,7 @@
           document.getElementById('loginMsg').textContent = data.ui_label || data.message;
         }
       } catch (err) {
+        document.getElementById('loginMsg').style.color = '#ff4b4b';
         document.getElementById('loginMsg').textContent = 'Network error';
       }
       document.getElementById('verifyOtpBtn').textContent = 'Verify OTP';
