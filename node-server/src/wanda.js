@@ -17,29 +17,7 @@ function hexToStr(hex) {
 }
 const JIOTV_TOKEN = atob(hexToStr('536b6c5552553545556b46665331564e5156493d'));
 
-// Build segment request headers (with auth + optional cookie)
-function buildSegHeaders(sessionData, config, channelId, authToken, clientIp, thorB64) {
-  const h = [
-    'User-Agent: ' + (config.api_endpoint_static_value?.['User-Agent-OkHttp'] || ''),
-    'crmid: '      + (sessionData?.sessionAttributes?.user?.subscriberId || ''),
-    'deviceId: '   + (sessionData?.deviceId || ''),
-    'devicetype: ' + (config.api_endpoint_static_value?.deviceType || ''),
-    'os: '         + (config.api_endpoint_static_value?.os || ''),
-    'osVersion: '  + (config.api_endpoint_static_value?.osVersion || ''),
-    'srno: '       + (config.jiotv_credentials?.srno || ''),
-    'ssotoken: '   + (sessionData?.ssoToken || ''),
-    'uniqueId: '   + (sessionData?.sessionAttributes?.user?.unique || ''),
-    'Connection: Keep-Alive',
-    clientIp ? 'X-Forwarded-For: ' + clientIp : ''
-  ];
-  if (thorB64) {
-    try {
-      const decodedCookie = atob(hexToStr(thorB64));
-      h.push('Cookie: ' + decodedCookie);
-    } catch(e) {}
-  }
-  return h.filter(x => x && x.trim() && !x.endsWith(': '));
-}
+import { streamHeaders } from './live.js';
 
 export async function handleWanda(request, sessionData, config, baseUrl) {
   const params = new URL(request.url).searchParams;
@@ -51,7 +29,19 @@ export async function handleWanda(request, sessionData, config, baseUrl) {
   const pkey       = params.get('pkey')        || '';  // encryption key URL
 
   const clientIp = request?.headers?.get('cf-connecting-ip') || '';
-  const headers = buildSegHeaders(sessionData, config, channelId, null, clientIp, thorB64);
+
+  let decodedCookie = null;
+  if (thorB64) {
+    try {
+      const thorHex = Buffer.from(thorB64, 'base64').toString('utf8');
+      decodedCookie = Buffer.from(thorHex, 'hex').toString('utf8');
+    } catch (e) {
+      console.error("Cookie decode error in wanda.js:", e);
+    }
+  }
+
+  // Use full headers like live.js
+  const headers = streamHeaders(sessionData, config, channelId, sessionData.authToken, decodedCookie, clientIp);
 
   // ── Sub-playlist M3U8 ─────────────────────────────────────
   if (hls) {

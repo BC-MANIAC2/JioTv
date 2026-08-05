@@ -8,7 +8,7 @@
 // No imports needed for piggybacking
 
 // Build headers for JioTV stream API calls
-function streamHeaders(sessionData, config, channelId, authToken, includeCookie = null, clientIp = null) {
+export function streamHeaders(sessionData, config, channelId, authToken, includeCookie = null, clientIp = null) {
   const sv = config.api_endpoint_static_value ?? {};
   const user = sessionData?.sessionAttributes?.user ?? {};
   const headers = [
@@ -105,9 +105,9 @@ export async function handleLive(channelId, sessionData, config, baseUrl, env, r
       return errorM3U8('Proxy session expired, please refresh the page');
     }
 
-    // 3. Rewrite wanda.php to our own baseUrl
+    // 3. Rewrite wanda.php to Teachub's working endpoint (04jio instead of 2p which returns 404)
     // Teachub returns either `wanda.php?...` or `/wanda.php?...`
-    m3u8Str = m3u8Str.replace(/(^|\n|\r|URI=")\/?wanda\.php\?/g, `$1${baseUrl}/wanda.php?`);
+    m3u8Str = m3u8Str.replace(/(^|\n|\r|URI=")(?:https:\/\/2p\.teachub\.workers\.dev)?\/?wanda\.php\?/g, `$1https://04jio.teachub.workers.dev/wanda.php?`);
 
     return new Response(m3u8Str.trim(), {
       status: 200,
