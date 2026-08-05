@@ -170,8 +170,10 @@ app.get('/api/stream', async (req, res) => {
         // Proxy the stream URL through our generic proxy to bypass CORS
         return res.json({
           type: isDash ? 'dash' : 'hls',
-          url: `/proxy?url=${encodeURIComponent(streamUrl)}`
+          url: `/proxy/${streamUrl}`
         });
+      } else {
+        console.error("Native stream fetch returned non-200:", result.info.http_code, json);
       }
     } catch (err) {
       console.error("Native stream fetch error:", err);
@@ -187,9 +189,15 @@ app.get('/api/stream', async (req, res) => {
 });
 
 // Generic proxy for DASH (.mpd) and segments (.m4s) when logged in natively
-app.get('/proxy', async (req, res) => {
-  const targetUrl = req.query.url;
-  if (!targetUrl) return res.status(400).send('Missing url');
+app.use('/proxy', async (req, res) => {
+  let targetUrl = req.url.substring(1);
+  if (targetUrl.startsWith('https:/') && !targetUrl.startsWith('https://')) {
+    targetUrl = targetUrl.replace('https:/', 'https://');
+  } else if (targetUrl.startsWith('http:/') && !targetUrl.startsWith('http://')) {
+    targetUrl = targetUrl.replace('http:/', 'http://');
+  }
+  
+  if (!targetUrl || !targetUrl.startsWith('http')) return res.status(400).send('Missing url');
   try {
     const response = await fetch(targetUrl, {
       headers: {
