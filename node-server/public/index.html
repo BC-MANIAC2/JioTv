@@ -30,7 +30,33 @@
     <div class="search-bar">
       <input type="text" id="searchInput" placeholder="Search channels..." autocomplete="off">
     </div>
+    <div class="auth-section">
+      <button id="loginBtn" class="btn" style="display:none;" onclick="openLoginModal()">Login with Jio</button>
+      <div id="loggedInState" style="display:none; color: #fff; font-size: 0.9em; text-align: right;">
+        <span style="color:#00e676">●</span> Logged In
+      </div>
+    </div>
   </header>
+
+  <div id="loginModal" class="modal">
+    <div class="modal-content">
+      <h2>JioTV Login</h2>
+      <p style="color:#aaa; font-size:0.9em; margin-bottom:15px;">Login required to unlock Premium & HD (DRM) channels.</p>
+      
+      <div id="step1">
+        <input type="text" id="mobileNumber" placeholder="Jio Mobile Number (e.g., 9876543210)" class="input-field">
+        <button class="btn" onclick="sendOtp()" id="sendOtpBtn" style="width: 100%; margin-top:10px;">Send OTP</button>
+      </div>
+      
+      <div id="step2" style="display:none;">
+        <input type="text" id="otpCode" placeholder="Enter OTP" class="input-field">
+        <button class="btn" onclick="verifyOtp()" id="verifyOtpBtn" style="width: 100%; margin-top:10px;">Verify OTP</button>
+      </div>
+
+      <div id="loginMsg" style="margin-top: 15px; color: #ff4b4b; font-size: 0.9em;"></div>
+      <button class="btn" style="background:transparent; color:#888; width:100%; margin-top:10px;" onclick="closeLoginModal()">Cancel</button>
+    </div>
+  </div>
 
   <main>
     <div class="category-filters" id="categoryFilters">
@@ -156,7 +182,82 @@
 
     document.getElementById('searchInput').addEventListener('input', renderChannels);
 
+    // --- Authentication Logic ---
+    function checkLoginState() {
+      if (document.cookie.includes('jiotv_sess=')) {
+        document.getElementById('loginBtn').style.display = 'none';
+        document.getElementById('loggedInState').style.display = 'block';
+      } else {
+        document.getElementById('loginBtn').style.display = 'block';
+        document.getElementById('loggedInState').style.display = 'none';
+      }
+    }
+
+    function openLoginModal() {
+      document.getElementById('loginModal').style.display = 'flex';
+      document.getElementById('step1').style.display = 'block';
+      document.getElementById('step2').style.display = 'none';
+      document.getElementById('loginMsg').textContent = '';
+      document.getElementById('mobileNumber').value = '';
+    }
+
+    function closeLoginModal() {
+      document.getElementById('loginModal').style.display = 'none';
+    }
+
+    async function sendOtp() {
+      const number = document.getElementById('mobileNumber').value;
+      if (!number || number.length < 10) return;
+      document.getElementById('sendOtpBtn').textContent = 'Sending...';
+      try {
+        const res = await fetch('/api/login/send-otp', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ number })
+        });
+        const data = await res.json();
+        if (data.message === 'SUCCESS') {
+          document.getElementById('step1').style.display = 'none';
+          document.getElementById('step2').style.display = 'block';
+          document.getElementById('loginMsg').style.color = '#00e676';
+          document.getElementById('loginMsg').textContent = 'OTP sent!';
+        } else {
+          document.getElementById('loginMsg').style.color = '#ff4b4b';
+          document.getElementById('loginMsg').textContent = data.ui_label || data.message;
+        }
+      } catch (err) {
+        document.getElementById('loginMsg').textContent = 'Network error';
+      }
+      document.getElementById('sendOtpBtn').textContent = 'Send OTP';
+    }
+
+    async function verifyOtp() {
+      const number = document.getElementById('mobileNumber').value;
+      const otp = document.getElementById('otpCode').value;
+      if (!otp) return;
+      document.getElementById('verifyOtpBtn').textContent = 'Verifying...';
+      try {
+        const res = await fetch('/api/login/verify-otp', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ number, otp })
+        });
+        const data = await res.json();
+        if (data.sessionData) {
+          closeLoginModal();
+          checkLoginState();
+        } else {
+          document.getElementById('loginMsg').style.color = '#ff4b4b';
+          document.getElementById('loginMsg').textContent = data.ui_label || data.message;
+        }
+      } catch (err) {
+        document.getElementById('loginMsg').textContent = 'Network error';
+      }
+      document.getElementById('verifyOtpBtn').textContent = 'Verify OTP';
+    }
+
     // Init
+    checkLoginState();
     loadChannels();
   </script>
 </body>
