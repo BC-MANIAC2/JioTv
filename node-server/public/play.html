@@ -168,38 +168,70 @@
         if (data.error) throw new Error(data.error);
         
         const streamUrl = data.url;
-        
+        const proxyUrlObj = new URL(streamUrl, window.location.href);
+        const queryParams = proxyUrlObj.search;
+
         if (data.type === 'dash') {
-          // Initialize Shaka Player for DRM / DASH content
-          shaka.polyfill.installAll();
-          if (shaka.Player.isBrowserSupported()) {
-            const player = new shaka.Player(video);
-            
-            // Configure Widevine license server
-            player.configure({
-              drm: {
-                servers: {
-                  'com.widevine.alpha': '/wanda_drm.php'
-                }
+          // Initialize Shaka Player
+          const video = document.getElementById('video');
+          const player = new shaka.Player(video);
+          
+          player.getNetworkingEngine().registerRequestFilter((type, request) => {
+            if (queryParams) {
+              const qs = queryParams.substring(1);
+              if (!request.uris[0].includes(qs)) {
+                request.uris[0] += (request.uris[0].includes('?') ? '&' : '?') + qs;
               }
-            });
-            
-            player.addEventListener('error', onErrorEvent);
-            
-            try {
-              await player.load(streamUrl);
-              document.getElementById('loading-overlay').style.display = 'none';
-              console.log('The video has now been loaded!');
-            } catch (e) {
-              onError(e);
             }
-          } else {
-            throw new Error('Browser not supported for DRM');
+          });
+
+          window.player = player;
+          player.addEventListener('error', onErrorEvent);
+          
+          // DRM Configuration for Widevine
+          player.configure({
+            drm: {
+              servers: {
+                'com.widevine.alpha': '/wanda_drm.php'
+              }
+            }
+          });
+
+          // Intercept DRM License Request to add session data and headers
+          player.getNetworkingEngine().registerRequestFilter((type, request) => {
+            if (type === shaka.net.NetworkingEngine.RequestType.LICENSE) {
+              request.headers['Content-Type'] = 'application/octet-stream';
+              if (sessionData) {
+                request.headers['x-jiotv-sess'] = sessionData;
+              }
+            }
+          });
+
+          try {
+            await player.load(streamUrl);
+            document.getElementById('loading-overlay').style.display = 'none';
+            console.log('The video has now been loaded!');
+          } catch (e) {
+            onError(e);
           }
         } else {
           // Fallback to HLS.js
           if (Hls.isSupported()) {
-            const hls = new Hls({ maxBufferLength: 30, enableWorker: true });
+            const video = document.getElementById('video');
+            const hls = new Hls({ 
+              maxBufferLength: 30, 
+              enableWorker: true,
+              xhrSetup: function(xhr, url) {
+                let newUrl = url;
+                if (queryParams) {
+                  const qs = queryParams.substring(1);
+                  if (!url.includes(qs)) {
+                    newUrl += (url.includes('?') ? '&' : '?') + qs;
+                  }
+                }
+                xhr.open('GET', newUrl, true);
+              }
+            });
             hls.loadSource(streamUrl);
             hls.attachMedia(video);
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
