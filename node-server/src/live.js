@@ -105,6 +105,11 @@ export async function handleLive(channelId, sessionData, config, baseUrl, env, r
       return errorM3U8('Proxy session expired, please refresh the page');
     }
 
+    if (!m3u8Str.includes('#EXTM3U')) {
+      console.log('Invalid M3U8 received from Teachub:', m3u8Str.substring(0, 100));
+      return errorM3U8('Channel currently unavailable (Upstream DRM or 404 Error)');
+    }
+
     // 3. Rewrite wanda.php to our own backend (using relative path to avoid localhost issues)
     // Teachub returns either `wanda.php?...` or `https://2p.teachub.../wanda.php?...`
     m3u8Str = m3u8Str.replace(/(^|\n|\r|URI=")(?:https?:\/\/[^\/]+)?\/?wanda\.php\?/g, `$1/wanda.php?`);
